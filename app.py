@@ -50,7 +50,7 @@ st.title("📊 PrizePicks Tracker Dashboard")
 # Today's Picks
 st.subheader("📌 Today's Picks")
 today = date.today().strftime("%Y-%m-%d")
-today_picks = df[df["Date"] == today]
+#today_picks = df[df["Date"] == today]
 if not today_picks.empty:
     st.table(today_picks)
 else:
@@ -91,7 +91,6 @@ st.subheader("📅 Daily Recommendations (Full List)")
 st.dataframe(daily_df)
 
 
-#today_picks = daily_df[daily_df["Date"] == today_str]
 
 
 
