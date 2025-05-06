@@ -28,9 +28,19 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
+# Debug: List all accessible spreadsheets
+try:
+    all_sheets = client.openall()
+    st.subheader("✅ Authenticated successfully. Accessible Sheets:")
+    for s in all_sheets:
+        st.write(f"- {s.title}")
+except Exception as e:
+    st.error(f"❌ Could not list spreadsheets: {e}")
+
+
 # Step 2: Load data from your Google Sheet
 SHEET_NAME = "PrizePicks Sheet"  # Replace with your sheet's name
-sheet = client.open(SHEET_NAME).sheet1
+# sheet = client.open(SHEET_NAME).sheet1
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
