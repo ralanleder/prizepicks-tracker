@@ -78,6 +78,16 @@ daily_sheet = client.open(SHEET_NAME).worksheet("Daily Picks")
 daily_data = daily_sheet.get_all_records()
 daily_df = pd.DataFrame(daily_data)
 
+st.write("📋 Daily Picks Columns:", daily_df.columns.tolist())
+
+# Normalize the columns
+daily_df.columns = daily_df.columns.str.strip().str.title()
+
+# Then this will work:
+today_str = date.today().strftime("%Y-%m-%d")
+today_picks = daily_df[daily_df["Date"] == today_str]
+
+
 st.subheader("📅 Today's Recommendations")
 today_picks = daily_df[daily_df["Date"] == date.today().strftime("%Y-%m-%d")]
 st.table(today_picks)
