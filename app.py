@@ -96,7 +96,7 @@ st.dataframe(daily_df)
 
 
 st.subheader("📅 Today's Recommendations")
-today_picks = daily_df[daily_df["Date"] == date.today().strftime("%Y-%m-%d")]
+# today_picks = daily_df[daily_df["Date"] == date.today().strftime("%Y-%m-%d")]
 st.table(today_picks)
 
 st.write("📋 Cleaned Columns:", daily_df.columns.tolist())
