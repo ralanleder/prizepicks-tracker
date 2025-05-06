@@ -85,6 +85,8 @@ daily_df.columns = [str(col).strip().title() for col in daily_df.columns]
 
 # Then this will work:
 today_str = date.today().strftime("%Y-%m-%d")
+st.write("🧩 Columns in daily_df:", daily_df.columns.tolist())
+
 today_picks = daily_df[daily_df["Date"] == today_str]
 
 
