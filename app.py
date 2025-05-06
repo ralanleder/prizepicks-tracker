@@ -42,14 +42,14 @@ st.title("📊 PrizePicks Tracker Dashboard")
 # Today's Picks (from Main Sheet)
 st.subheader("📌 Today's Picks")
 today_str = date.today().strftime("%Y-%m-%d")
-if "Date" in df.columns:
-    today_picks_main = df[df["Date"] == today_str]
-    if not today_picks_main.empty:
-        st.table(today_picks_main)
-    else:
-        st.info("No picks logged for today.")
-else:
-    st.warning("No 'Date' column in main data.")
+#if "Date" in df.columns:
+ #   today_picks_main = df[df["Date"] == today_str]
+  #  if not today_picks_main.empty:
+   #     st.table(today_picks_main)
+    # else:
+      #  st.info("No picks logged for today.")
+#else:
+ #   st.warning("No 'Date' column in main data.")
 
 # Performance Summary
 st.subheader("📈 Performance Summary")
