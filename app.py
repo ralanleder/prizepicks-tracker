@@ -72,3 +72,12 @@ else:
 # Full History
 st.subheader("📚 Full Entry History")
 st.dataframe(df)
+
+# Load Daily Picks
+daily_sheet = client.open(SHEET_NAME).worksheet("Daily Picks")
+daily_data = daily_sheet.get_all_records()
+daily_df = pd.DataFrame(daily_data)
+
+st.subheader("📅 Today's Recommendations")
+today_picks = daily_df[daily_df["Date"] == date.today().strftime("%Y-%m-%d")]
+st.table(today_picks)
