@@ -80,15 +80,19 @@ daily_df = pd.DataFrame(daily_data)
 
 st.write("📋 Daily Picks Columns:", daily_df.columns.tolist())
 
-# Ensure all column names are strings before using .str methods
+# Normalize column headers
 daily_df.columns = [str(col).strip().title() for col in daily_df.columns]
 
-# Then this will work:
-today_str = date.today().strftime("%Y-%m-%d")
-st.write("🧩 Columns in daily_df:", daily_df.columns.tolist())
+# ✅ Display column names for debug
 st.write("📋 Columns in Daily Picks Sheet:", daily_df.columns.tolist())
 
-today_picks = daily_df[daily_df["Date"] == today_str]
+# ✅ Show all daily picks unfiltered for now
+st.subheader("📅 Daily Recommendations (Full List)")
+st.dataframe(daily_df)
+
+
+#today_picks = daily_df[daily_df["Date"] == today_str]
+
 
 
 st.subheader("📅 Today's Recommendations")
