@@ -48,7 +48,7 @@ else:
 
 # Performance Summary
 st.subheader("📈 Performance Summary")
-hits = df[df["Resultstr.lower() == "hit"]
+hits = df[df["Result"].str.lower() == "hit"]
 misses = df[df["Result"].str.lower() == "miss"]
 total_logged = len(df[df["Result"].str.lower().isin(["hit", "miss"])])
 
