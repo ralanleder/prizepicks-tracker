@@ -6,10 +6,10 @@ from dotenv import load_dotenv
 from datetime import date
 import os
 
-# Load environment variables from .env
+# Load environment variables
 load_dotenv()
 
-# Build credentials dictionary from environment variables
+# Credentials from .env
 creds_dict = {
     "type": os.getenv("TYPE"),
     "project_id": os.getenv("PROJECT_ID"),
@@ -23,79 +23,80 @@ creds_dict = {
     "client_x509_cert_url": os.getenv("CLIENT_CERT_URL")
 }
 
-# Step 1: Authenticate with Google Sheets
+# Authenticate with Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# Debug: List all accessible spreadsheets
-try:
-    all_sheets = client.openall()
-    st.subheader("✅ Authenticated successfully. Accessible Sheets:")
-    for s in all_sheets:
-        st.write(f"- {s.title}")
-except Exception as e:
-    st.error(f"❌ Could not list spreadsheets: {e}")
+# Set sheet name
+SHEET_NAME = "PrizePicks Sheet"
 
-
-# Step 2: Load data from your Google Sheet
-SHEET_NAME = "PrizePicks Sheet"  # Replace with your sheet's name
+# Load main sheet data
 sheet = client.open(SHEET_NAME).sheet1
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
-# Step 3: Streamlit App UI
+# Streamlit App UI
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# Today's Picks
+# Today's Picks (from Main Sheet)
 st.subheader("📌 Today's Picks")
-today = date.today().strftime("%Y-%m-%d")
-#today_picks = df[df["Date"] == today]
-if not today_picks.empty:
-    st.table(today_picks)
+today_str = date.today().strftime("%Y-%m-%d")
+if "Date" in df.columns:
+    today_picks_main = df[df["Date"] == today_str]
+    if not today_picks_main.empty:
+        st.table(today_picks_main)
+    else:
+        st.info("No picks logged for today.")
 else:
-    st.info("No picks logged for today.")
+    st.warning("No 'Date' column in main data.")
 
 # Performance Summary
 st.subheader("📈 Performance Summary")
-hits = df[df["Result"].str.lower() == "hit"]
-misses = df[df["Result"].str.lower() == "miss"]
-total_logged = len(df[df["Result"].str.lower().isin(["hit", "miss"])])
+if "Result" in df.columns:
+    hits = df[df["Result"].str.lower() == "hit"]
+    misses = df[df["Result"].str.lower() == "miss"]
+    total_logged = len(hits) + len(misses)
 
-if total_logged > 0:
-    hit_rate = len(hits) / total_logged * 100
-    st.metric("✅ Total Logged", total_logged)
-    st.metric("🎯 Hit Rate", f"{hit_rate:.1}%")
+    if total_logged > 0:
+        hit_rate = len(hits) / total_logged * 100
+        st.metric("✅ Total Logged", total_logged)
+        st.metric("🎯 Hit Rate", f"{hit_rate:.1f}%")
+    else:
+        st.warning("No completed results to show.")
 else:
-    st.warning("No hit/miss data to summarize yet.")
+    st.warning("Missing 'Result' column for summary.")
 
-# Full History
+# Full Entry History
 st.subheader("📚 Full Entry History")
 st.dataframe(df)
 
-# Load Daily Picks
-daily_sheet = client.open(SHEET_NAME).worksheet("Daily Picks")
-daily_data = daily_sheet.get_all_records()
-daily_df = pd.DataFrame(daily_data)
+# Load Daily Picks from 'Daily Picks' tab
+try:
+    daily_sheet = client.open(SHEET_NAME).worksheet("Daily Picks")
+    daily_data = daily_sheet.get_all_records()
+    daily_df = pd.DataFrame(daily_data)
 
-st.write("📋 Daily Picks Columns:", daily_df.columns.tolist())
+    # Normalize columns
+    daily_df.columns = [str(col).strip().title() for col in daily_df.columns]
 
-# Normalize column headers
-daily_df.columns = [str(col).strip().title() for col in daily_df.columns]
+    # Debug: Show column headers
+    st.write("📋 Daily Picks Columns:", daily_df.columns.tolist())
 
-# ✅ Display column names for debug
-st.write("📋 Columns in Daily Picks Sheet:", daily_df.columns.tolist())
+    # Full list
+    st.subheader("📅 Daily Recommendations (Full List)")
+    st.dataframe(daily_df)
 
-# ✅ Show all daily picks unfiltered for now
-st.subheader("📅 Daily Recommendations (Full List)")
-st.dataframe(daily_df)
+    # Filter today's recommendations
+    if "Date" in daily_df.columns:
+        today_recs = daily_df[daily_df["Date"] == today_str]
+        st.subheader("✅ Today's Daily Recommendations")
+        if not today_recs.empty:
+            st.table(today_recs)
+        else:
+            st.info("No recommendations for today.")
+    else:
+        st.warning("❗ 'Date' column not found in Daily Picks tab.")
 
-
-
-
-
-st.subheader("📅 Today's Recommendations")
-# today_picks = daily_df[daily_df["Date"] == date.today().strftime("%Y-%m-%d")]
-st.table(today_picks)
-
-st.write("📋 Cleaned Columns:", daily_df.columns.tolist())
+except Exception as e:
+    st.error(f"❌ Could not load Daily Picks sheet: {e}")
