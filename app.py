@@ -40,7 +40,7 @@ except Exception as e:
 
 # Step 2: Load data from your Google Sheet
 SHEET_NAME = "PrizePicks Sheet"  # Replace with your sheet's name
-# sheet = client.open(SHEET_NAME).sheet1
+sheet = client.open(SHEET_NAME).sheet1
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
