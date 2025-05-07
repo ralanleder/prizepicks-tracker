@@ -41,13 +41,17 @@ def load_sheet_dataframe(sheet_name, worksheet_name=None):
     return df
 
 # ─── Constants ─────────────────────────────────────────────────────────────────
+# (OPTIONAL) Make the page use the full width
+st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
 
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# ─── 🔄 Prominent Refresh Button ───────────────────────────────────────────────
-st.markdown("### 🔄 Need fresh props? Click the big button below to reload everything!")
-if st.button("🔄 REFRESH PROPS NOW", key="refresh-main"):
-    st.experimental_rerun()
+# ─── Centered, Eye-Catching Refresh Button ───────────────────────────────────────
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.markdown("### 🔄 **Refresh Props**")
+    if st.button("🔄 REFRESH NOW", key="refresh-main", help="Click to reload data"):
+        st.experimental_rerun()
     
 # ─── Main Tracker ───────────────────────────────────────────────────────────────
 try:
