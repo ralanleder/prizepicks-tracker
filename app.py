@@ -159,11 +159,13 @@ def run_update_pipeline():
     ws = client.open(SHEET_NAME).worksheet(DAILY_TAB)
     dc = find_date_column(df.columns)
     for idx, r in df.iterrows():
-        if r[dc] != today_str or r.get("Status"): continue
+        if r[dc] != today_str or r.get("Status"):
+            continue
         actual = lookup_final_stat(r["Player"], r["Prop"], "")
         status = "DNP" if actual is None else ("Hit" if actual >= r["Line"] else "Miss")
         ws.update_cell(idx+2, df.columns.get_loc("Status")+1, status)
-    prev = get_bankroll(); change = 0
+    prev = get_bankroll()
+    change = 0
     for tab in (DAILY_TAB, MULTI_TAB):
         d = load_df(tab)
         dc2 = find_date_column(d.columns)
@@ -173,6 +175,8 @@ def run_update_pipeline():
             stt = getattr(row, "Status", "")
             change += stake if stt == "Hit" else -stake if stt == "Miss" else 0
     new_bal = prev + change
-    ensure_ws(BANK_TAB, ["Date","Balance"]).append_row([today_str, new_bal])
-  ensure_ws(WATCH_TAB, ["Date","Player","Prop","Game","Status"];
+    ensure_ws(BANK_TAB, ["Date", "Balance"]).append_row([today_str, new_bal])
+    # Ensure Watchlist sheet exists with correct headers
+    ensure_ws(WATCH_TAB, ["Date", "Player", "Prop", "Game", "Status"])
 
+# --- UI follows ---
