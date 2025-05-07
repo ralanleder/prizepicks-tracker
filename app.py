@@ -41,15 +41,14 @@ def load_sheet_dataframe(sheet_name, worksheet_name=None):
     return df
 
 # ─── Constants ─────────────────────────────────────────────────────────────────
-SHEET_NAME = "PrizePicks Sheet"
-today_str  = date.today().strftime("%Y-%m-%d")
 
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# ─── Refresh Button in Sidebar ─────────────────────────────────────────────────
-if st.sidebar.button("🔄 Refresh Props"):
+# ─── 🔄 Prominent Refresh Button ───────────────────────────────────────────────
+st.markdown("### 🔄 Need fresh props? Click the big button below to reload everything!")
+if st.button("🔄 REFRESH PROPS NOW", key="refresh-main"):
     st.experimental_rerun()
-
+    
 # ─── Main Tracker ───────────────────────────────────────────────────────────────
 try:
     main_df = load_sheet_dataframe(SHEET_NAME)
