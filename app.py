@@ -88,7 +88,7 @@ try:
     st.subheader("🗓️ Today's Daily Recommendations")
     date_col = find_date_column(daily_df.columns)
     if date_col:
-        today_daily = daily_df[daily_df[date_col] == today_str]
+      #  today_daily = daily_df[daily_df[date_col] == today_str]
         if not today_daily.empty:
             st.table(today_daily)
         else:
