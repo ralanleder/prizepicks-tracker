@@ -33,15 +33,23 @@ today_str  = date.today().strftime("%Y-%m-%d")
 
 # ─── 3) Page Setup & Refresh Button ─────────────────────────────────────────────
 st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
+# Debug counter
+if "refresh_count" not in st.session_state:
+    st.session_state.refresh_count = 0
+
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# Centered Refresh block
-col1, col2, col3 = st.columns([1, 2, 1])
+# Centered Refresh & Debug
+col1, col2, col3 = st.columns([1,2,1])
 with col2:
     st.markdown("### 🔄 **Refresh Props**")
-    # The ONLY st.experimental_rerun call lives inside this block:
-    if st.button("🔄 REFRESH NOW", key="refresh-main", help="Click to reload all data"):
+    if st.button("🔄 REFRESH NOW", key="refresh-main"):
+        st.session_state.refresh_count += 1
+        # clear any memoized data
+        st.experimental_memo.clear()
         st.experimental_rerun()
+    st.caption(f"*Reruns: {st.session_state.refresh_count}*")
+
 
 # ─── 4) Helper Functions ────────────────────────────────────────────────────────
 def find_date_column(columns):
