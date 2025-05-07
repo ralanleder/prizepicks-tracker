@@ -17,8 +17,7 @@ creds = {
     "type": os.getenv("TYPE"),
     "project_id": os.getenv("PROJECT_ID"),
     "private_key_id": os.getenv("PRIVATE_KEY_ID"),
-    "private_key": os.getenv("PRIVATE_KEY").replace("\\n",
-"\n"),
+    "private_key": os.getenv("PRIVATE_KEY").replace("\\n", "\n"),
     "client_email": os.getenv("CLIENT_EMAIL"),
     "client_id": os.getenv("CLIENT_ID"),
     "auth_uri": os.getenv("AUTH_URI"),
@@ -37,13 +36,28 @@ LOG_TAB       = "Recommendation Log"
 today_str     = date.today().strftime("%Y-%m-%d")
 SPORTS_LIST   = ["Soccer", "NBA", "Baseball", "NFL", "NHL"]
 
-# ─── 3) Helpers ─────────────────────────────────────────────────────────────────
+# ─── 3) Bet formatting templates ─────────────────────────────────────────────────
+BET_TEMPLATES = {
+    "Points":      "points",
+    "Rebounds":    "rebounds",
+    "Assists":     "assists",
+    "Pts+Reb":     "points & rebounds",
+    "3PT Made":    "three-pointers made",
+    # add more as needed
+}
+
+def format_pick(player, prop, line, rec):
+    human_prop = BET_TEMPLATES.get(prop, prop.lower())
+    return f"{player} — {rec} {line} {human_prop}"
+
+# ─── 4) Helpers ─────────────────────────────────────────────────────────────────
 def find_date_column(columns):
     variants = {"date", "day", "pick date", "game date"}
     for c in columns:
         if str(c).strip().lower() in variants:
             return c
     return None
+
 
 def ensure_worksheet(title, headers, rows=1000, cols=20):
     ss = client.open(SHEET_NAME)
@@ -55,10 +69,11 @@ def ensure_worksheet(title, headers, rows=1000, cols=20):
     if current != headers:
         try:
             ws.delete_row(1)
-        except Exception:
+        except:
             pass
         ws.insert_row(headers, 1)
     return ws
+
 
 def load_df(tab=None):
     ss = client.open(SHEET_NAME)
@@ -66,6 +81,7 @@ def load_df(tab=None):
     df = pd.DataFrame(ws.get_all_records())
     df.columns = [str(c).strip() for c in df.columns]
     return df
+
 
 def save_daily_picks(picks: pd.DataFrame):
     ws = ensure_worksheet(DAILY_TAB,
@@ -85,6 +101,7 @@ def save_daily_picks(picks: pd.DataFrame):
             r["Probability"],
         ])
 
+
 def save_multisport(combos: dict):
     ws = ensure_worksheet(MULTI_TAB,
         ["Date","Type","Legs","Payout","Probability"]
@@ -96,6 +113,7 @@ def save_multisport(combos: dict):
         ws.append_row([today_str, "Parlay", "; ".join(p["legs"]), p["payout"], p["probability"]])
     for m in combos["moonshots"]:
         ws.append_row([today_str, "Moonshot", "; ".join(m["legs"]), m["payout"], m["probability"]])
+
 
 def save_to_log(run_type: str, combos: dict):
     ws = ensure_worksheet(LOG_TAB,
@@ -112,20 +130,7 @@ def save_to_log(run_type: str, combos: dict):
                 combo["probability"],
             ])
 
-# ─── 4) Formatting Templates ───────────────────────────────────────────────────
-BET_TEMPLATES = {
-    "Points":      "points",
-    "Rebounds":    "rebounds",
-    "Assists":     "assists",
-    "Pts+Reb":     "points & rebounds",
-    "3PT Made":    "three-pointers made",
-}
-
-def format_pick(player, prop, line, rec):
-    human_prop = BET_TEMPLATES.get(prop, prop.lower())
-    return f"{player} — {rec} {line} {human_prop}"
-
-# ─── 5) Recommendation Logic (stubs) ───────────────────────────────────────────
+# ─── 5) Recommendation Logic (stubs—you'll replace with your models) ──────────
 def fetch_prizepicks_board():
     return pd.DataFrame([
         {"Player":"Lionel Messi","Prop":"Goals","Line":1.5,"Sport":"Soccer"},
@@ -135,12 +140,14 @@ def fetch_prizepicks_board():
         {"Player":"Connor McDavid","Prop":"Assists","Line":1.5,"Sport":"NHL"},
     ])
 
+
 def score_and_select(df_board: pd.DataFrame) -> pd.DataFrame:
     df = df_board.copy()
     df["Recommendation"] = "Over"
     df["Probability"]   = [round(random.uniform(0.55,0.85),2) for _ in range(len(df))]
     df["Sport"]         = df["Sport"].str.strip().str.title()
     return df
+
 
 def generate_multisport_combos(picks: pd.DataFrame):
     available = picks.groupby("Sport").first().reset_index()
@@ -150,7 +157,7 @@ def generate_multisport_combos(picks: pd.DataFrame):
         prob, legs = 1.0, []
         for s in combo:
             r = picks[picks["Sport"]==s].iloc[0]
-            legs.append(f"{r['Player']} O{r['Line']}")
+            legs.append(format_pick(r["Player"], r["Prop"], r["Line"], r["Recommendation"]))
             prob *= r["Probability"]
         payout = f"{round(min(15,1/prob),1)}×"
         parlays.append({"legs":legs,"payout":payout,"probability":prob})
@@ -158,7 +165,7 @@ def generate_multisport_combos(picks: pd.DataFrame):
         prob, legs = 1.0, []
         for s in combo:
             r = picks[picks["Sport"]==s].iloc[0]
-            legs.append(f"{r['Player']} O{r['Line']}")
+            legs.append(format_pick(r["Player"], r["Prop"], r["Line"], r["Recommendation"]))
             prob *= r["Probability"]
         payout = f"{round(min(25,1/prob),1)}×"
         moonshots.append({"legs":legs,"payout":payout,"probability":prob})
