@@ -47,6 +47,10 @@ today_str = date.today().strftime("%Y-%m-%d")
 
 st.title("📊 PrizePicks Tracker Dashboard")
 
+# Add a refresh button
+if st.button("🔄 Refresh Props"):
+    st.experimental_rerun()
+
 # ─── Main Tracker ───────────────────────────────────────────────────────────────
 try:
     main_df = load_sheet_dataframe(SHEET_NAME)
