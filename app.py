@@ -79,7 +79,7 @@ try:
         st.warning("Missing 'Result' column in tracker.")
 
     st.subheader("📌 Today's Picks (Main Sheet)")
-    if "Date" in df.columns:
+    if any(col.lower() == "date" for col in daily_df.columns):
         today_main = df[df["Date"] == today_str]
         st.table(today_main if not today_main.empty else "No picks for today.")
     else:
@@ -96,12 +96,14 @@ try:
     daily_data = daily_sheet.get_all_records()
     daily_df = pd.DataFrame(daily_data)
 
-    daily_df.columns = [str(col).strip().title() for col in daily_df.columns]
+   daily_df.columns = [str(col).strip() for col in daily_df.columns]
     st.subheader("📅 Daily Picks – Full List")
     st.dataframe(daily_df)
 
-    if "Date" in daily_df.columns:
-        today_recs = daily_df[daily_df["Date"] == today_str]
+  if any(col.lower() == "date" for col in daily_df.columns):
+        # Safely get the 'Date' column, regardless of case
+date_col = [col for col in daily_df.columns if col.lower() == "date"][0]
+today_recs = daily_df[daily_df[date_col] == today_str]
         st.subheader("✅ Today's Daily Recommendations")
         st.table(today_recs if not today_recs.empty else "No daily picks for today.")
     else:
