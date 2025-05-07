@@ -2,6 +2,8 @@ import os
 import requests
 from dotenv import load_dotenv
 import streamlit as st
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ─── Load local .env for development ────────────────────────────────────────────
 load_dotenv()
@@ -10,28 +12,48 @@ load_dotenv()
 SESSION_TOKEN = os.getenv("RL_SESSION") or st.secrets.get("RL_SESSION")
 if not SESSION_TOKEN:
     raise RuntimeError(
-        "RL_SESSION not set! "
-        "On Streamlit Cloud go to 'Manage App > Secrets' and add RL_SESSION."
+        "RL_SESSION not set! On Streamlit Cloud go to 'Manage App > Secrets' and add RL_SESSION."
     )
 
+# ─── Build a requests.Session with retries ──────────────────────────────────────
+session = requests.Session()
+retries = Retry(
+    total=2,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["POST"]
+)
+session.mount("https://", HTTPAdapter(max_retries=retries))
+
+# ─── Common headers to mimic a real browser ─────────────────────────────────────
 HEADERS = {
     "Authorization": f"Bearer {SESSION_TOKEN}",
+    "Cookie":       f"session={SESSION_TOKEN}",
+    "User-Agent":   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/115.0.0.0 Safari/537.36",
+    "Origin":       "https://app.prizepicks.com",
+    "Referer":      "https://app.prizepicks.com/",
     "Content-Type": "application/json",
 }
 
 GRAPHQL_URL = "https://production.prizepicks.com/graphql"
+TIMEOUT = 30  # seconds
 
-# ─── Core GraphQL helper ────────────────────────────────────────────────────────
 def graphql_query(query: str, variables: dict = None) -> dict:
     payload = {"query": query, "variables": variables or {}}
-    resp = requests.post(GRAPHQL_URL, json=payload, headers=HEADERS, timeout=10)
+    resp = session.post(
+        GRAPHQL_URL,
+        json=payload,
+        headers=HEADERS,
+        timeout=TIMEOUT
+    )
     resp.raise_for_status()
     data = resp.json()
     if "errors" in data:
         raise RuntimeError(f"GraphQL errors: {data['errors']}")
     return data["data"]
 
-# ─── PrizePicks API functions ───────────────────────────────────────────────────
 def get_account_balance() -> float:
     query = """
     query {
@@ -63,8 +85,7 @@ def get_user_history(limit: int = 50) -> list[dict]:
       }
     }"""
     data = graphql_query(query, {"limit": limit})
-    edges = data["me"]["picks"]["edges"]
-    return [edge["node"] for edge in edges]
+    return [edge["node"] for edge in data["me"]["picks"]["edges"]]
 
 def get_current_board() -> list[dict]:
     query = """
@@ -87,13 +108,11 @@ def get_current_board() -> list[dict]:
     for mg in data["momentGroups"]:
         for p in mg["props"]:
             props.append({
-                "Group": mg["name"],
-                "Player": p["playerName"],
-                "Stat": p["statKey"],
-                "Line": p["line"],
-                "Sport": p["sport"]["name"],
+                "Group":   mg["name"],
+                "Player":  p["playerName"],
+                "Stat":    p["statKey"],
+                "Line":    p["line"],
+                "Sport":   p["sport"]["name"],
                 "Kickoff": p["startsAt"],
             })
     return props
-# Expose SESSION_TOKEN for debugging
-__all__ = ["get_account_balance", "get_user_history", "get_current_board", "SESSION_TOKEN"]
