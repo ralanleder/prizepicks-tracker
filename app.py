@@ -26,7 +26,7 @@ client = gspread.authorize(creds)
 
 # ─── Helpers ────────────────────────────────────────────────────────────────────
 def find_date_column(columns):
-    """Return the first column name matching date or its common variants."""
+    """Return the first column name matching date or common variants."""
     variants = {"date", "day", "pick date", "game date"}
     for col in columns:
         if str(col).strip().lower() in variants:
@@ -89,7 +89,6 @@ try:
     st.subheader("📅 Daily Picks – Full List")
     st.dataframe(daily_df, use_container_width=True)
 
-    # Cleaned “Today's Daily Recommendations”
     st.subheader("✅ Today's Daily Recommendations")
     daily_date_col = find_date_column(daily_df.columns)
     if daily_date_col:
@@ -107,5 +106,28 @@ try:
             st.info("No daily picks for today.")
     else:
         st.warning("No date-like column found in Daily Picks tab.")
+
+    # ─── Save Today's Picks Button ───────────────────────────────────────────────
+    if 'picks' in locals() and not picks.empty:
+        if st.button("💾 Save Today's Picks to Google Sheet"):
+            try:
+                daily_sheet = client.open(SHEET_NAME).worksheet("Daily Picks")
+                # Remove existing rows for today
+                existing = daily_sheet.findall(today_str, in_column=1)
+                for cell in sorted(existing, key=lambda c: c.row, reverse=True):
+                    daily_sheet.delete_row(cell.row)
+                # Append current picks
+                for _, row in picks.iterrows():
+                    daily_sheet.append_row([
+                        today_str,
+                        row["Player"],
+                        row["Prop"],
+                        row["Line"],
+                        row.get("Recommendation", "")
+                    ])
+                st.success("✅ Today's picks saved to Google Sheet!")
+            except Exception as e:
+                st.error(f"❌ Failed to save picks: {e}")
+
 except Exception as e:
     st.error(f"Error loading Daily Picks tab: {e}")
