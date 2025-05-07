@@ -7,179 +7,136 @@ from datetime import date
 import os
 import streamlit.components.v1 as components
 
-# ─── PrizePicks Client (for Diagnostics) ────────────────────────────────────────
+# ─── PrizePicks Client (Diagnostics) ───────────────────────────────────────────
 from prizepicks_client import get_account_balance, get_current_board
 
-# ─── 1) Load ENV & Authenticate Google Sheets ──────────────────────────────────
+# ─── 1) Load ENV & Authenticate Google Sheets ─────────────────────────────────
 load_dotenv()
 creds_dict = {
     "type": os.getenv("TYPE"),
     "project_id": os.getenv("PROJECT_ID"),
     "private_key_id": os.getenv("PRIVATE_KEY_ID"),
-    "private_key": os.getenv("PRIVATE_KEY").replace("\\n", "\n"),
+    "private_key": os.getenv("PRIVATE_KEY").replace("\\n","\n"),
     "client_email": os.getenv("CLIENT_EMAIL"),
     "client_id": os.getenv("CLIENT_ID"),
     "auth_uri": os.getenv("AUTH_URI"),
     "token_uri": os.getenv("TOKEN_URI"),
     "auth_provider_x509_cert_url": os.getenv("AUTH_PROVIDER_CERT_URL"),
-    "client_x509_cert_url": os.getenv("CLIENT_CERT_URL")
+    "client_x509_cert_url": os.getenv("CLIENT_CERT_URL"),
 }
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ─── 2) Constants ───────────────────────────────────────────────────────────────
+# ─── 2) Constants ──────────────────────────────────────────────────────────────
 SHEET_NAME = "PrizePicks Sheet"
 today_str  = date.today().strftime("%Y-%m-%d")
 
-# ─── 3) Page Layout & Navigation ───────────────────────────────────────────────
+# ─── 3) Page Layout & Nav ──────────────────────────────────────────────────────
 st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
 page = st.sidebar.radio("Navigate to", ["Dashboard", "Recommendations", "Diagnostics"])
 
 # ─── 4) Helpers ─────────────────────────────────────────────────────────────────
-def find_date_column(columns):
-    variants = {"date", "day", "pick date", "game date"}
-    for c in columns:
-        if str(c).strip().lower() in variants:
-            return c
-    return None
-
-def load_sheet_dataframe(sheet_name, worksheet_name=None):
-    ws = client.open(sheet_name).worksheet(worksheet_name) if worksheet_name else client.open(sheet_name).sheet1
-    df = pd.DataFrame(ws.get_all_records())
-    df.columns = [str(c).strip() for c in df.columns]
-    return df
-
-def save_picks_to_sheet(picks: pd.DataFrame):
-    ws = client.open(SHEET_NAME).worksheet("Daily Picks")
-    # delete old today rows
-    date_cells = ws.findall(today_str, in_column=1)
-    for cell in sorted(date_cells, key=lambda c: c.row, reverse=True):
-        if cell.row > 1:
-            ws.delete_rows(cell.row)
-    # append new picks
-    for _, r in picks.iterrows():
-        ws.append_row([today_str, r["Player"], r["Prop"], r["Line"], r.get("Recommendation","")])
-
-def update_status_in_sheet(row_idx: int, status: str):
-    ws = client.open(SHEET_NAME).worksheet("Daily Picks")
-    ws.update_cell(row_idx + 2, 6, status)  # header + zero-based
-
-# ─── 5) Stub Recommendation Logic ───────────────────────────────────────────────
-# Replace these with your real implementations
 def fetch_prizepicks_board():
+    """DEMO STUB: replace with real board-fetching logic."""
     sample = [
-        {"Player":"LeBron James","Prop":"Points","Line":28.5,"Game":"Lakers vs Heat"},
-        {"Player":"Stephen Curry","Prop":"3PT Made","Line":4.5,"Game":"Warriors vs Suns"},
-        {"Player":"Mookie Betts","Prop":"Total Bases","Line":2.5,"Game":"Dodgers vs Braves"},
+        {"Player":"Lionel Messi",           "Prop":"Goals",          "Line":1.5,  "Sport":"Soccer"},
+        {"Player":"LeBron James",           "Prop":"Points",         "Line":28.5, "Sport":"NBA"},
+        {"Player":"Mookie Betts",           "Prop":"Hits",           "Line":1.5,  "Sport":"Baseball"},
+        {"Player":"Tom Brady",              "Prop":"Passing Yards",  "Line":250.5,"Sport":"NFL"},
+        {"Player":"Connor McDavid",         "Prop":"Assists",        "Line":1.5,  "Sport":"NHL"},
     ]
     return pd.DataFrame(sample)
 
 def score_and_select(df_board: pd.DataFrame) -> pd.DataFrame:
+    """DEMO STUB: tag all as 'Over' and assign random win prob."""
+    import random
     df = df_board.copy()
     df["Recommendation"] = "Over"
+    df["Probability"]   = [round(random.uniform(0.55, 0.85), 2) for _ in range(len(df))]
     return df
 
-def lookup_final_stat(player: str, prop: str, game: str):
-    return None  # DNP
+def generate_parlay_recs(picks: pd.DataFrame):
+    """DEMO STUB: returns sample parlays & moonshots."""
+    # example combo structures
+    return {
+        "parlays": [
+            {"legs":[f"{picks.iloc[0]['Player']} {picks.iloc[0]['Prop']} Over"], 
+             "payout":"6×", "probability":0.60},
+            {"legs":[f"{picks.iloc[1]['Player']} {picks.iloc[1]['Prop']} Over",
+                     f"{picks.iloc[2]['Player']} {picks.iloc[2]['Prop']} Over"], 
+             "payout":"12×", "probability":0.45},
+        ],
+        "moonshots": [
+            {"legs":[
+                f"{picks.iloc[0]['Player']} O",
+                f"{picks.iloc[1]['Player']} O",
+                f"{picks.iloc[2]['Player']} O"
+              ],
+             "payout":"20×", "probability":0.30},
+        ]
+    }
 
-# ─── 6) Page: Dashboard ─────────────────────────────────────────────────────────
+# ─── 5) Dashboard Screen ─────────────────────────────────────────────────────────
 if page == "Dashboard":
     st.title("📊 Dashboard")
-    # Load and display main history
-    main_df = load_sheet_dataframe(SHEET_NAME)
-    st.subheader("📚 Full Entry History")
-    st.dataframe(main_df, use_container_width=True)
+    # Load your historical tracker
+    try:
+        df = pd.DataFrame(client.open(SHEET_NAME).sheet1.get_all_records())
+        st.subheader("📚 Full Entry History")
+        st.dataframe(df, use_container_width=True)
+        # (Your existing summary/stats here…)
+    except Exception as e:
+        st.error(f"Error loading main sheet: {e}")
 
-    # Performance summary
-    st.subheader("📈 Performance Summary")
-    if "Result" in main_df.columns:
-        hits   = main_df[main_df["Result"].str.lower()=="hit"]
-        misses = main_df[main_df["Result"].str.lower()=="miss"]
-        total  = len(hits) + len(misses)
-        if total:
-            st.metric("✅ Total Logged", total)
-            st.metric("🎯 Hit Rate", f"{len(hits)/total*100:.1f}%")
-        else:
-            st.info("No completed entries.")
-    else:
-        st.warning("Missing `Result` column.")
-
-    # Today's picks from main sheet
-    st.subheader("📌 Today's Picks (Main Sheet)")
-    main_date_col = find_date_column(main_df.columns)
-    if main_date_col:
-        today_main = main_df[main_df[main_date_col]==today_str]
-        if not today_main.empty:
-            st.table(today_main)
-        else:
-            st.info("No picks logged for today in main sheet.")
-    else:
-        st.warning("No date column found.")
-
-# ─── 7) Page: Recommendations ───────────────────────────────────────────────────
+# ─── 6) Recommendations Screen ───────────────────────────────────────────────────
 elif page == "Recommendations":
     st.title("🎯 Recommendations")
 
     # Refresh button
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        if st.button("🔄 REFRESH NOW"):
+        if st.button("🔄 REFRESH PROPS"):
             components.html("<script>window.location.reload()</script>")
 
-    # 1) Generate & Save
-    st.subheader("🔄 Generate & Save Today's Picks")
-    if st.button("Generate & Save Picks Now"):
-        board = fetch_prizepicks_board()
-        picks = score_and_select(board)
-        picks.insert(0, "Date", today_str)
-        save_picks_to_sheet(picks)
-        st.success(f"{len(picks)} picks generated and saved.")
+    # Generate single-leg recs
+    st.subheader("🚀 Single-Leg Picks by Sport")
+    board = fetch_prizepicks_board()
+    picks = score_and_select(board)
 
-    # 2) Check Results
-    st.subheader("🏁 Check Results for Completed Games")
-    if st.button("Check All Results Now"):
-        daily_df = load_sheet_dataframe(SHEET_NAME, "Daily Picks")
-        date_col = find_date_column(daily_df.columns)
-        # ensure Status column
-        if "Status" not in daily_df.columns:
-            ws = client.open(SHEET_NAME).worksheet("Daily Picks")
-            ws.add_cols(1)
-            ws.update_cell(1, len(daily_df.columns)+1, "Status")
-            daily_df["Status"] = ""
-        # update each row
-        for idx, row in daily_df.iterrows():
-            if row.get("Status") in ("Hit","Miss","DNP"):
-                continue
-            actual = lookup_final_stat(row["Player"], row["Prop"], row["Game"])
-            if actual is None:
-                status = "DNP"
-            else:
-                line = row["Line"]; rec = row["Recommendation"].lower()
-                status = ("Hit" if (actual>=line if rec.startswith("over") else actual<=line) else "Miss")
-            update_status_in_sheet(idx, status)
-        st.success("All results updated.")
-
-    # 3) View Today's Picks
-    st.subheader("📅 Today's Picks")
-    today_df = load_sheet_dataframe(SHEET_NAME, "Daily Picks")
-    date_col = find_date_column(today_df.columns)
-    if date_col:
-        view = today_df[today_df[date_col]==today_str]
-        if not view.empty:
-            st.dataframe(view)
+    for sport in ["Soccer","NBA","Baseball","NFL","NHL"]:
+        st.markdown(f"**{sport}**")
+        df_s = picks[picks["Sport"]==sport]
+        if df_s.empty:
+            st.info(f"No recs available for {sport}.")
         else:
-            st.info("No picks for today. Generate above.")
-    else:
-        st.warning("No date column in Daily Picks.")
+            for i, row in df_s.iterrows():
+                st.markdown(
+                    f"- {row['Player']} | {row['Prop']} Over {row['Line']} "
+                    f"— {row['Probability']*100:.0f}% chance"
+                )
 
-# ─── 8) Page: Diagnostics ───────────────────────────────────────────────────────
+    # Multi-leg parlays & moonshots
+    st.subheader("🎲 Parlays & Moonshots")
+    if st.button("Generate Parlays & Moonshots"):
+        combos = generate_parlay_recs(picks)
+        st.markdown("**Parlays (up to 15×)**")
+        for combo in combos["parlays"]:
+            legs = "; ".join(combo["legs"])
+            st.markdown(f"- {legs} → {combo['payout']} ({combo['probability']*100:.0f}% combo win rate)")
+
+        st.markdown("**Moonshots (up to 25×)**")
+        for combo in combos["moonshots"]:
+            legs = "; ".join(combo["legs"])
+            st.markdown(f"- {legs} → {combo['payout']} ({combo['probability']*100:.0f}% combo win rate)")
+
+# ─── 7) Diagnostics Screen ───────────────────────────────────────────────────────
 elif page == "Diagnostics":
     st.title("🛠 Diagnostics")
 
-    st.subheader("🔑 SESSSION TOKEN (truncated)")
+    st.subheader("🔑 SESSION TOKEN (truncated)")
     token = os.getenv("RL_SESSION") or st.secrets.get("RL_SESSION")
-    st.write(token[:8]+"…" if token else "None")
+    st.write(token[:8] + "…" if token else "None")
 
     st.subheader("💰 Account Balance")
     try:
