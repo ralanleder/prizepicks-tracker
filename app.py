@@ -10,7 +10,6 @@ import random
 import itertools
 from prizepicks_client import get_account_balance, get_current_board
 
-# Load environment
 load_dotenv()
 
 # --- Authentication Setup ---
@@ -24,6 +23,7 @@ if st.sidebar.button("Login"):
     if username in USER_CREDENTIALS and password == USER_CREDENTIALS[username]:
         st.session_state.logged_in = True
         st.sidebar.success("Logged in successfully!")
+        st.experimental_rerun()
     else:
         st.sidebar.error("Invalid credentials")
 if not st.session_state.logged_in:
@@ -176,7 +176,31 @@ def run_update_pipeline():
             change += stake if stt == "Hit" else -stake if stt == "Miss" else 0
     new_bal = prev + change
     ensure_ws(BANK_TAB, ["Date", "Balance"]).append_row([today_str, new_bal])
-    # Ensure Watchlist sheet exists with correct headers
     ensure_ws(WATCH_TAB, ["Date", "Player", "Prop", "Game", "Status"])
 
 # --- UI follows ---
+st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
+page = st.sidebar.radio("Navigate to", ["Dashboard","Recommendations","Multi-Sport","Bankroll","Diagnostics"])
+
+if page == "Dashboard":
+    st.title("📊 Dashboard")
+    try:
+        df = load_df()
+        st.subheader("📚 Full Entry History")
+        st.dataframe(df, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error loading main sheet: {e}")
+
+elif page == "Recommendations":
+    st.title("🎯 Single-Sport Picks")
+    if st.button("🔄 Generate & Save Single-Sport Picks"):
+        picks = score_and_select(fetch_prizepicks_board())
+        save_daily(picks)
+        st.success(f"{len(picks)} picks saved to '{DAILY_TAB}'")
+    try:
+        df = load_df(DAILY_TAB)
+        dc = find_date_column(df.columns)
+        tp = df[df[dc] == today_str] if dc else pd.DataFrame()
+        bal = get_bankroll(); uv = bal * 0.05
+        for sport in SPORTS_LIST:
+            st.markdown(f"**{sport}**")\`
