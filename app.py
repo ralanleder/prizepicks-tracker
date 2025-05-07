@@ -75,3 +75,6 @@ elif page == "Diagnostics":
         st.write(board[:3])
     except Exception as e:
         st.error(f"Error fetching board: {e}")
+
+st.write("🔑 SESSION TOKEN (truncated):", SESSION_TOKEN[:8] + "…")
+
