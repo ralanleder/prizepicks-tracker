@@ -17,7 +17,8 @@ creds = {
     "type": os.getenv("TYPE"),
     "project_id": os.getenv("PROJECT_ID"),
     "private_key_id": os.getenv("PRIVATE_KEY_ID"),
-    "private_key": os.getenv("PRIVATE_KEY").replace("\\n", "\n"),
+    "private_key": os.getenv("PRIVATE_KEY").replace("\\n",
+"\n"),
     "client_email": os.getenv("CLIENT_EMAIL"),
     "client_id": os.getenv("CLIENT_ID"),
     "auth_uri": os.getenv("AUTH_URI"),
@@ -45,13 +46,11 @@ def find_date_column(columns):
     return None
 
 def ensure_worksheet(title, headers, rows=1000, cols=20):
-    """Get or create a worksheet, then ensure its header row matches `headers`."""
     ss = client.open(SHEET_NAME)
     try:
         ws = ss.worksheet(title)
     except WorksheetNotFound:
         ws = ss.add_worksheet(title=title, rows=str(rows), cols=str(cols))
-    # Ensure headers
     current = ws.row_values(1)
     if current != headers:
         try:
@@ -72,11 +71,9 @@ def save_daily_picks(picks: pd.DataFrame):
     ws = ensure_worksheet(DAILY_TAB,
         ["Date","Sport","Player","Prop","Line","Recommendation","Probability"]
     )
-    # remove existing today
     for cell in sorted(ws.findall(today_str, in_column=1), key=lambda c: c.row, reverse=True):
         if cell.row > 1:
             ws.delete_rows(cell.row)
-    # append new
     for _, r in picks.iterrows():
         ws.append_row([
             today_str,
@@ -92,11 +89,9 @@ def save_multisport(combos: dict):
     ws = ensure_worksheet(MULTI_TAB,
         ["Date","Type","Legs","Payout","Probability"]
     )
-    # remove existing today
     for cell in sorted(ws.findall(today_str, in_column=1), key=lambda c: c.row, reverse=True):
         if cell.row > 1:
             ws.delete_rows(cell.row)
-    # append parlays then moonshots
     for p in combos["parlays"]:
         ws.append_row([today_str, "Parlay", "; ".join(p["legs"]), p["payout"], p["probability"]])
     for m in combos["moonshots"]:
@@ -117,7 +112,20 @@ def save_to_log(run_type: str, combos: dict):
                 combo["probability"],
             ])
 
-# ─── 4) Recommendation Logic (stubs—replace with your models) ────────────────
+# ─── 4) Formatting Templates ───────────────────────────────────────────────────
+BET_TEMPLATES = {
+    "Points":      "points",
+    "Rebounds":    "rebounds",
+    "Assists":     "assists",
+    "Pts+Reb":     "points & rebounds",
+    "3PT Made":    "three-pointers made",
+}
+
+def format_pick(player, prop, line, rec):
+    human_prop = BET_TEMPLATES.get(prop, prop.lower())
+    return f"{player} — {rec} {line} {human_prop}"
+
+# ─── 5) Recommendation Logic (stubs) ───────────────────────────────────────────
 def fetch_prizepicks_board():
     return pd.DataFrame([
         {"Player":"Lionel Messi","Prop":"Goals","Line":1.5,"Sport":"Soccer"},
@@ -138,7 +146,6 @@ def generate_multisport_combos(picks: pd.DataFrame):
     available = picks.groupby("Sport").first().reset_index()
     sports = available["Sport"].tolist()
     parlays, moonshots = [], []
-    # 3-leg parlays ≤15×
     for combo in itertools.combinations(sports, 3):
         prob, legs = 1.0, []
         for s in combo:
@@ -147,7 +154,6 @@ def generate_multisport_combos(picks: pd.DataFrame):
             prob *= r["Probability"]
         payout = f"{round(min(15,1/prob),1)}×"
         parlays.append({"legs":legs,"payout":payout,"probability":prob})
-    # 4-leg moonshots ≤25×
     for combo in itertools.combinations(sports, 4):
         prob, legs = 1.0, []
         for s in combo:
@@ -158,11 +164,11 @@ def generate_multisport_combos(picks: pd.DataFrame):
         moonshots.append({"legs":legs,"payout":payout,"probability":prob})
     return {"parlays":parlays,"moonshots":moonshots}
 
-# ─── 5) Page Layout & Navigation ───────────────────────────────────────────────
+# ─── 6) Page Layout & Navigation ───────────────────────────────────────────────
 st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
 page = st.sidebar.radio("Navigate to", ["Dashboard","Recommendations","Multi-Sport","Diagnostics"])
 
-# ─── 6) Dashboard ───────────────────────────────────────────────────────────────
+# ─── 7) Dashboard ───────────────────────────────────────────────────────────────
 if page == "Dashboard":
     st.title("📊 Dashboard")
     try:
@@ -172,7 +178,7 @@ if page == "Dashboard":
     except Exception as e:
         st.error(f"Error loading main sheet: {e}")
 
-# ─── 7) Single-Sport Recommendations ─────────────────────────────────────────────
+# ─── 8) Single-Sport Recommendations ───────────────────────────────────────────
 elif page == "Recommendations":
     st.title("🎯 Single-Sport Picks")
     if st.button("🔄 Generate & Save Single-Sport Picks"):
@@ -192,11 +198,13 @@ elif page == "Recommendations":
                 st.info(f"No recs available for {sport}.")
             else:
                 for _, r in df_s.iterrows():
-                    st.markdown(f"- {r['Player']} | {r['Prop']} O {r['Line']} — {r['Probability']*100:.0f}%")
+                    text = format_pick(r['Player'], r['Prop'], r['Line'], r['Recommendation'])
+                    prob = r['Probability'] * 100
+                    st.markdown(f"- {text} — {prob:.0f}% chance")
     except Exception as e:
         st.error(f"Error loading single-sport picks: {e}")
 
-# ─── 8) Multi-Sport Parlays & Moonshots ─────────────────────────────────────────
+# ─── 9) Multi-Sport Parlays & Moonshots ─────────────────────────────────────────
 elif page == "Multi-Sport":
     st.title("🔗 Multi-Sport Parlays & Moonshots")
     if st.button("🔄 Generate & Save Multi-Sport Combos"):
@@ -219,7 +227,7 @@ elif page == "Multi-Sport":
     except Exception as e:
         st.error(f"Error loading multi-sport combos: {e}")
 
-# ─── 9) Diagnostics ─────────────────────────────────────────────────────────────
+# ─── 10) Diagnostics ─────────────────────────────────────────────────────────────
 else:
     st.title("🛠 Diagnostics")
     token = os.getenv("RL_SESSION") or st.secrets.get("RL_SESSION")
