@@ -6,10 +6,8 @@ from dotenv import load_dotenv
 from datetime import date
 import os
 
-# Load environment variables
+# ─── Load ENV & Authenticate ────────────────────────────────────────────────────
 load_dotenv()
-
-# Build credentials dictionary from .env
 creds_dict = {
     "type": os.getenv("TYPE"),
     "project_id": os.getenv("PROJECT_ID"),
@@ -22,80 +20,92 @@ creds_dict = {
     "auth_provider_x509_cert_url": os.getenv("AUTH_PROVIDER_CERT_URL"),
     "client_x509_cert_url": os.getenv("CLIENT_CERT_URL")
 }
-
-# Authorize Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# Constants
+# ─── Helpers ────────────────────────────────────────────────────────────────────
+def find_date_column(cols):
+    """
+    Return the first column name matching 'date' (case-insensitive),
+    or common variants ('day','pick date','game date').
+    """
+    variants = {"date", "day", "pick date", "game date"}
+    for c in cols:
+        if str(c).strip().lower() in variants:
+            return c
+    return None
+
+def load_sheet_dataframe(sheet_name, worksheet_name=None):
+    """
+    Load a gspread worksheet as a DataFrame with cleaned headers.
+    If worksheet_name is None, load the first sheet.
+    """
+    if worksheet_name:
+        sheet = client.open(sheet_name).worksheet(worksheet_name)
+    else:
+        sheet = client.open(sheet_name).sheet1
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    # Clean up header names
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+# ─── Constants ─────────────────────────────────────────────────────────────────
 SHEET_NAME = "PrizePicks Sheet"
 today_str = date.today().strftime("%Y-%m-%d")
 
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# Helper to normalize and find a 'Date' column
-def get_date_column(columns):
-    for col in columns:
-        if str(col).strip().lower() == "date":
-            return col
-    for col in columns:
-        if str(col).strip().lower() in ["day", "pick date", "game date", "date "]:
-            return col
-    return None
-
-# --- Load and display main picks tracker ---
+# ─── Main Tracker ───────────────────────────────────────────────────────────────
 try:
-    sheet = client.open(SHEET_NAME).sheet1
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-    df.columns = [str(col).strip() for col in df.columns]
-
+    main_df = load_sheet_dataframe(SHEET_NAME)
     st.subheader("📚 Full Entry History")
-    st.dataframe(df)
+    st.dataframe(main_df, use_container_width=True)
 
     st.subheader("📈 Performance Summary")
-    if "Result" in df.columns:
-        hits = df[df["Result"].str.lower() == "hit"]
-        misses = df[df["Result"].str.lower() == "miss"]
-        total_logged = len(hits) + len(misses)
-        if total_logged > 0:
-            hit_rate = len(hits) / total_logged * 100
-            st.metric("✅ Total Logged", total_logged)
-            st.metric("🎯 Hit Rate", f"{hit_rate:.1f}%")
+    if "Result" in main_df.columns:
+        hits = main_df[main_df["Result"].str.lower() == "hit"]
+        misses = main_df[main_df["Result"].str.lower() == "miss"]
+        total = len(hits) + len(misses)
+        if total:
+            st.metric("✅ Total Logged", total)
+            st.metric("🎯 Hit Rate", f"{len(hits)/total*100:.1f}%")
         else:
-            st.info("No completed results yet.")
+            st.info("No completed entries yet.")
     else:
-        st.warning("Missing 'Result' column in tracker.")
+        st.warning("Missing `Result` column in main tracker.")
 
     st.subheader("📌 Today's Picks (Main Sheet)")
-    main_date_col = get_date_column(df.columns)
-    if main_date_col:
-        today_main = df[df[main_date_col] == today_str]
-        st.table(today_main if not today_main.empty else "No picks for today.")
+    date_col = find_date_column(main_df.columns)
+    if date_col:
+        today_main = main_df[main_df[date_col] == today_str]
+        if not today_main.empty:
+            st.table(today_main)
+        else:
+            st.info("No main-sheet picks logged for today.")
     else:
-        st.warning("❗ 'Date' column not found in main sheet.")
+        st.warning("No date-like column found in main tracker.")
 
 except Exception as e:
-    st.error(f"❌ Error loading main sheet: {e}")
+    st.error(f"Error loading main tracker sheet: {e}")
 
-# --- Load and display Daily Picks tab ---
+# ─── Daily Recommendations ────────────────────────────────────────────────────
 try:
-    daily_sheet = client.open(SHEET_NAME).worksheet("Daily Picks")
-    daily_data = daily_sheet.get_all_records()
-    daily_df = pd.DataFrame(daily_data)
-    daily_df.columns = [str(col).strip() for col in daily_df.columns]
-
+    daily_df = load_sheet_dataframe(SHEET_NAME, worksheet_name="Daily Picks")
     st.subheader("📅 Daily Picks – Full List")
-    st.dataframe(daily_df)
+    st.dataframe(daily_df, use_container_width=True)
 
-    daily_date_col = get_date_column(daily_df.columns)
-    if daily_date_col:
-        today_daily = daily_df[daily_df[daily_date_col] == today_str]
-        st.subheader("✅ Today's Daily Recommendations")
-        st.table(today_daily if not today_daily.empty else "No daily picks for today.")
+    st.subheader("🗓️ Today's Daily Recommendations")
+    date_col = find_date_column(daily_df.columns)
+    if date_col:
+        today_daily = daily_df[daily_df[date_col] == today_str]
+        if not today_daily.empty:
+            st.table(today_daily)
+        else:
+            st.info("No daily picks for today.")
     else:
-        st.warning("❗ 'Date' column not found in Daily Picks tab.")
+        st.warning("No date-like column found in Daily Picks tab.")
 
 except Exception as e:
-    st.error(f"❌ Error loading Daily Picks tab: {e}")
+    st.error(f"Error loading Daily Picks tab: {e}")
