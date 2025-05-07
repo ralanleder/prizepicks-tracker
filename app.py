@@ -200,7 +200,7 @@ elif page=="Recommendations":
         bal = get_bankroll(); uv = bal*0.05
         for sport in SPORTS_LIST:
             st.markdown(f"**{sport}**")
-            sub = tp[tp["Sport"]==sport]]
+            sub = tp[tp["Sport"]==sport]
             if sub.empty: st.info(f"No recs for {sport}.")
             else:
                 for _,r in sub.iterrows():
