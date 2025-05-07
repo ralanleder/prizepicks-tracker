@@ -29,21 +29,18 @@ client = gspread.authorize(creds)
 
 # ─── 2) Constants ───────────────────────────────────────────────────────────────
 SHEET_NAME = "PrizePicks Sheet"
-today_str = date.today().strftime("%Y-%m-%d")
+today_str  = date.today().strftime("%Y-%m-%d")
 
 # ─── 3) Page Setup & Refresh Button ─────────────────────────────────────────────
 st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
 st.title("📊 PrizePicks Tracker Dashboard")
 
+# Centered Refresh block
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     st.markdown("### 🔄 **Refresh Props**")
-    st.button(
-        "🔄 REFRESH NOW",
-        key="refresh-main",
-        help="Click to reload all data",
-        on_click=st.experimental_rerun
-    )
+    if st.button("🔄 REFRESH NOW", key="refresh-main", help="Click to reload all data"):
+        st.experimental_rerun()
 
 # ─── 4) Helper Functions ────────────────────────────────────────────────────────
 def find_date_column(columns):
@@ -70,9 +67,9 @@ try:
 
     st.subheader("📈 Performance Summary")
     if "Result" in main_df.columns:
-        hits = main_df[main_df["Result"].str.lower() == "hit"]
+        hits  = main_df[main_df["Result"].str.lower() == "hit"]
         misses = main_df[main_df["Result"].str.lower() == "miss"]
-        total = len(hits) + len(misses)
+        total  = len(hits) + len(misses)
         if total:
             st.metric("✅ Total Logged", total)
             st.metric("🎯 Hit Rate", f"{len(hits)/total*100:.1f}%")
@@ -115,26 +112,4 @@ try:
                 )
                 st.markdown("---")
         else:
-            st.info("No daily picks for today.")
-    else:
-        st.warning("No date-like column found in Daily Picks tab.")
-
-    # ─── Save Today's Picks Button ───────────────────────────────────────────────
-    if 'picks' in locals() and not picks.empty:
-        if st.button("💾 Save Today's Picks to Google Sheet"):
-            try:
-                ws = client.open(SHEET_NAME).worksheet("Daily Picks")
-                existing = ws.findall(today_str, in_column=1)
-                for cell in sorted(existing, key=lambda c: c.row, reverse=True):
-                    ws.delete_row(cell.row)
-                for _, r in picks.iterrows():
-                    ws.append_row([
-                        today_str, r["Player"], r["Prop"],
-                        r["Line"], r.get("Recommendation","")
-                    ])
-                st.success("✅ Today’s picks saved!")
-            except Exception as err:
-                st.error(f"Failed to save picks: {err}")
-
-except Exception as e:
-    st.error(f"Error loading Daily Picks tab: {e}")
+            st.info("
