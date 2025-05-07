@@ -2,9 +2,14 @@ import os
 import requests
 from dotenv import load_dotenv
 
+# Load environment variables from .env or secrets.toml
 load_dotenv()
 
-SESSION_TOKEN = os.getenv("PRIZEPICKS_SESSION")
+# Use RL_SESSION instead of PRIZEPICKS_SESSION
+SESSION_TOKEN = os.getenv("RL_SESSION")
+if not SESSION_TOKEN:
+    raise ValueError("RL_SESSION environment variable not set")
+
 HEADERS = {
     "Authorization": f"Bearer {SESSION_TOKEN}",
     "Content-Type": "application/json",
@@ -14,9 +19,9 @@ GRAPHQL_URL = "https://production.prizepicks.com/graphql"
 
 def graphql_query(query: str, variables: dict = None) -> dict:
     payload = {"query": query, "variables": variables or {}}
-    resp = requests.post(GRAPHQL_URL, json=payload, headers=HEADERS)
-    resp.raise_for_status()
-    return resp.json()["data"]
+    response = requests.post(GRAPHQL_URL, json=payload, headers=HEADERS)
+    response.raise_for_status()
+    return response.json()["data"]
 
 def get_account_balance() -> float:
     query = """
@@ -51,7 +56,7 @@ def get_user_history(limit: int = 50) -> list[dict]:
     }"""
     data = graphql_query(query, {"limit": limit})
     edges = data["me"]["picks"]["edges"]
-    return [e["node"] for e in edges]
+    return [edge["node"] for edge in edges]
 
 def get_current_board() -> list[dict]:
     query = """
@@ -70,7 +75,6 @@ def get_current_board() -> list[dict]:
       }
     }"""
     data = graphql_query(query)
-    # flatten: one entry per prop
     props = []
     for mg in data["momentGroups"]:
         for p in mg["props"]:
@@ -80,6 +84,6 @@ def get_current_board() -> list[dict]:
                 "Stat": p["statKey"],
                 "Line": p["line"],
                 "Sport": p["sport"]["name"],
-                "Kickoff": p["startsAt"]
+                "Kickoff": p["startsAt"],
             })
     return props
