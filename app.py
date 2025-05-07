@@ -8,7 +8,7 @@ import os
 import streamlit.components.v1 as components
 
 # ─── PrizePicks Client ─────────────────────────────────────────────────────────
-from prizepicks_client import get_account_balance, get_current_board
+from prizepicks_client import SESSION_TOKEN, get_account_balance, get_current_board
 
 # ─── AUTH & SHEET SETUP ─────────────────────────────────────────────────────────
 load_dotenv()
