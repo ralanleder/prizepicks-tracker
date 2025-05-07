@@ -5,18 +5,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 from datetime import date
 import os
+import streamlit.components.v1 as components
 
-# ─── Force Streamlit Rerun ──────────────────────────────────────────────────────
-try:
-    from streamlit.runtime.scriptrunner import RerunException
-except ImportError:
-    from streamlit.script_runner import RerunException
-
-def trigger_rerun():
-    """Raise the exception Streamlit uses to restart the script."""
-    raise RerunException
-
-# ─── Load ENV & Authenticate ────────────────────────────────────────────────────
+# ─── 1) Load ENV & Authenticate ────────────────────────────────────────────────
 load_dotenv()
 creds_dict = {
     "type": os.getenv("TYPE"),
@@ -37,11 +28,11 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ─── Constants ─────────────────────────────────────────────────────────────────
+# ─── 2) Constants ───────────────────────────────────────────────────────────────
 SHEET_NAME = "PrizePicks Sheet"
 today_str = date.today().strftime("%Y-%m-%d")
 
-# ─── Page Setup & Refresh Button ───────────────────────────────────────────────
+# ─── 3) Page Setup & Refresh Button (JS Reload) ─────────────────────────────────
 st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
 st.title("📊 PrizePicks Tracker Dashboard")
 
@@ -49,9 +40,10 @@ col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     st.markdown("### 🔄 **Refresh Props**")
     if st.button("🔄 REFRESH NOW", key="refresh-main", help="Click to reload all data"):
-        trigger_rerun()
+        # Force a full browser reload
+        components.html("<script>window.location.reload()</script>")
 
-# ─── Helper Functions ──────────────────────────────────────────────────────────
+# ─── 4) Helper Functions ──────────────────────────────────────────────────────────
 def find_date_column(columns):
     variants = {"date", "day", "pick date", "game date"}
     for c in columns:
@@ -68,7 +60,7 @@ def load_sheet_dataframe(sheet_name, worksheet_name=None):
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
-# ─── Main Tracker Section ──────────────────────────────────────────────────────
+# ─── 5) Main Tracker Section ───────────────────────────────────────────────────
 try:
     main_df = load_sheet_dataframe(SHEET_NAME)
     st.subheader("📚 Full Entry History")
@@ -100,7 +92,7 @@ try:
 except Exception as e:
     st.error(f"Error loading main tracker sheet: {e}")
 
-# ─── Daily Recommendations Section ────────────────────────────────────────────
+# ─── 6) Daily Recommendations Section ────────────────────────────────────────────
 try:
     daily_df = load_sheet_dataframe(SHEET_NAME, worksheet_name="Daily Picks")
     st.subheader("📅 Daily Picks – Full List")
@@ -124,7 +116,7 @@ try:
     else:
         st.warning("No date-like column found in Daily Picks tab.")
 
-    # Save Today's Picks Button
+    # ─── Save Today's Picks Button ───────────────────────────────────────────────
     if 'picks' in locals() and not picks.empty:
         if st.button("💾 Save Today's Picks to Google Sheet"):
             try:
