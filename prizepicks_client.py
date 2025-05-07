@@ -1,14 +1,18 @@
 import os
 import requests
 from dotenv import load_dotenv
+import streamlit as st
 
-# Load environment variables from .env or secrets.toml
+# ─── Load local .env for development ────────────────────────────────────────────
 load_dotenv()
 
-# Use RL_SESSION instead of PRIZEPICKS_SESSION
-SESSION_TOKEN = os.getenv("RL_SESSION")
+# ─── Fetch session token from ENV or Streamlit secrets ──────────────────────────
+SESSION_TOKEN = os.getenv("RL_SESSION") or st.secrets.get("RL_SESSION")
 if not SESSION_TOKEN:
-    raise ValueError("RL_SESSION environment variable not set")
+    raise RuntimeError(
+        "RL_SESSION not set! "
+        "On Streamlit Cloud go to 'Manage App > Secrets' and add RL_SESSION."
+    )
 
 HEADERS = {
     "Authorization": f"Bearer {SESSION_TOKEN}",
@@ -17,17 +21,21 @@ HEADERS = {
 
 GRAPHQL_URL = "https://production.prizepicks.com/graphql"
 
+# ─── Core GraphQL helper ────────────────────────────────────────────────────────
 def graphql_query(query: str, variables: dict = None) -> dict:
     payload = {"query": query, "variables": variables or {}}
-    response = requests.post(GRAPHQL_URL, json=payload, headers=HEADERS)
-    response.raise_for_status()
-    return response.json()["data"]
+    resp = requests.post(GRAPHQL_URL, json=payload, headers=HEADERS, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    if "errors" in data:
+        raise RuntimeError(f"GraphQL errors: {data['errors']}")
+    return data["data"]
 
+# ─── PrizePicks API functions ───────────────────────────────────────────────────
 def get_account_balance() -> float:
     query = """
     query {
       me {
-        id
         balance {
           total_balance
         }
@@ -38,16 +46,16 @@ def get_account_balance() -> float:
 
 def get_user_history(limit: int = 50) -> list[dict]:
     query = """
-    query($limit:Int!) {
+    query($limit: Int!) {
       me {
-        picks(limit:$limit) {
+        picks(limit: $limit) {
           edges {
             node {
               id
               spread
               stake
               payout
-              result     # WIN, LOSS, CANCELLED
+              result
               createdAt
             }
           }
