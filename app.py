@@ -174,5 +174,5 @@ def run_update_pipeline():
             change += stake if stt == "Hit" else -stake if stt == "Miss" else 0
     new_bal = prev + change
     ensure_ws(BANK_TAB, ["Date","Balance"]).append_row([today_str, new_bal])
-    ensure_ws(WATCH_TAB, ["Date","Player","Prop","Game",
+  ensure_ws(WATCH_TAB, ["Date","Player","Prop","Game","Status"]);
 
