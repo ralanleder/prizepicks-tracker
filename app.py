@@ -28,77 +28,84 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# Set Google Sheet name
+# Set sheet and date
 SHEET_NAME = "PrizePicks Sheet"
 today_str = date.today().strftime("%Y-%m-%d")
 
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# --- Load Main Sheet Data ---
+# ----------- Helper: Clean and Rename Columns in Daily Picks ------------
+def standardize_date_column(sheet):
+    raw_headers = sheet.row_values(1)
+    cleaned_headers = [str(h).strip().title() for h in raw_headers]
+    
+    # Define likely alternate column names for "Date"
+    alt_names = ["Day", "Pick Date", " Game Date", "Date "]
+
+    if "Date" not in cleaned_headers:
+        for i, col in enumerate(cleaned_headers):
+            if col in alt_names:
+                st.warning(f"🛠 Renaming column '{col}' to 'Date'")
+                cleaned_headers[i] = "Date"
+                break
+
+    # Rewrite headers if needed
+    if cleaned_headers != raw_headers:
+        sheet.delete_row(1)
+        sheet.insert_row(cleaned_headers, 1)
+        st.success("✅ Column headers updated.")
+
+# ---------------- Load and display main picks tracker ----------------
 try:
     sheet = client.open(SHEET_NAME).sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
+
     st.subheader("📚 Full Entry History")
     st.dataframe(df)
 
-    # ✅ Performance Summary
     st.subheader("📈 Performance Summary")
     if "Result" in df.columns:
         hits = df[df["Result"].str.lower() == "hit"]
         misses = df[df["Result"].str.lower() == "miss"]
         total_logged = len(hits) + len(misses)
-
         if total_logged > 0:
             hit_rate = len(hits) / total_logged * 100
             st.metric("✅ Total Logged", total_logged)
             st.metric("🎯 Hit Rate", f"{hit_rate:.1f}%")
         else:
-            st.warning("No completed results to show.")
+            st.info("No completed results yet.")
     else:
-        st.warning("Missing 'Result' column for summary.")
+        st.warning("Missing 'Result' column in tracker.")
 
-    # ✅ Today's Picks from main sheet
     st.subheader("📌 Today's Picks (Main Sheet)")
     if "Date" in df.columns:
         today_main = df[df["Date"] == today_str]
-        if not today_main.empty:
-            st.table(today_main)
-        else:
-            st.info("No picks logged for today.")
+        st.table(today_main if not today_main.empty else "No picks for today.")
     else:
-        st.warning("No 'Date' column in main data.")
+        st.warning("❗ 'Date' column not found in main tracker.")
 
 except Exception as e:
-    st.error(f"❌ Could not load main sheet: {e}")
+    st.error(f"❌ Error loading main sheet: {e}")
 
-# --- Load Daily Picks Tab ---
+# ---------------- Load and display Daily Picks tab ----------------
 try:
     daily_sheet = client.open(SHEET_NAME).worksheet("Daily Picks")
+    standardize_date_column(daily_sheet)
+
     daily_data = daily_sheet.get_all_records()
     daily_df = pd.DataFrame(daily_data)
 
-    # Normalize column headers
     daily_df.columns = [str(col).strip().title() for col in daily_df.columns]
-
-    # 🔍 Debug: Show all column headers
-    st.subheader("🧪 Daily Picks Debug Info")
-    st.write("📋 Columns in Daily Picks tab:", daily_df.columns.tolist())
-
-    # ✅ Show full daily picks table
-    st.subheader("📅 Daily Recommendations (Full List)")
+    st.subheader("📅 Daily Picks – Full List")
     st.dataframe(daily_df)
 
-    # ✅ Filtered for today
-    st.subheader("📅 Today's Daily Recommendations")
     if "Date" in daily_df.columns:
         today_recs = daily_df[daily_df["Date"] == today_str]
-        if not today_recs.empty:
-            st.table(today_recs)
-        else:
-            st.info("No daily picks found for today.")
+        st.subheader("✅ Today's Daily Recommendations")
+        st.table(today_recs if not today_recs.empty else "No daily picks for today.")
     else:
-        st.warning("❗ 'Date' column not found in Daily Picks tab.")
+        st.warning("❗ Still no 'Date' column after attempted cleanup.")
 
 except Exception as e:
-    st.error(f"❌ Could not load Daily Picks worksheet: {e}")
+    st.error(f"❌ Error loading Daily Picks tab: {e}")
