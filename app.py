@@ -25,29 +25,19 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 # ─── Helpers ────────────────────────────────────────────────────────────────────
-def find_date_column(cols):
-    """
-    Return the first column name matching 'date' (case-insensitive),
-    or common variants ('day','pick date','game date').
-    """
+def find_date_column(columns):
+    """Return the name of the first column matching 'date' or common variants, else None."""
     variants = {"date", "day", "pick date", "game date"}
-    for c in cols:
-        if str(c).strip().lower() in variants:
-            return c
+    for col in columns:
+        if str(col).strip().lower() in variants:
+            return col
     return None
 
 def load_sheet_dataframe(sheet_name, worksheet_name=None):
-    """
-    Load a gspread worksheet as a DataFrame with cleaned headers.
-    If worksheet_name is None, load the first sheet.
-    """
-    if worksheet_name:
-        sheet = client.open(sheet_name).worksheet(worksheet_name)
-    else:
-        sheet = client.open(sheet_name).sheet1
-    data = sheet.get_all_records()
+    """Load a worksheet (or first sheet) into a DataFrame with cleaned headers."""
+    ws = client.open(sheet_name).worksheet(worksheet_name) if worksheet_name else client.open(sheet_name).sheet1
+    data = ws.get_all_records()
     df = pd.DataFrame(data)
-    # Clean up header names
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
@@ -77,16 +67,15 @@ try:
         st.warning("Missing `Result` column in main tracker.")
 
     st.subheader("📌 Today's Picks (Main Sheet)")
-    date_col = find_date_column(main_df.columns)
-    if date_col:
-        today_main = main_df[main_df[date_col] == today_str]
+    main_date_col = find_date_column(main_df.columns)
+    if main_date_col:
+        today_main = main_df[main_df[main_date_col] == today_str]
         if not today_main.empty:
             st.table(today_main)
         else:
             st.info("No main-sheet picks logged for today.")
     else:
         st.warning("No date-like column found in main tracker.")
-
 except Exception as e:
     st.error(f"Error loading main tracker sheet: {e}")
 
@@ -106,6 +95,5 @@ try:
             st.info("No daily picks for today.")
     else:
         st.warning("No date-like column found in Daily Picks tab.")
-
 except Exception as e:
     st.error(f"Error loading Daily Picks tab: {e}")
