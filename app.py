@@ -75,7 +75,26 @@ try:
     if main_date_col:
         today_main = main_df[main_df[main_date_col] == today_str]
         if not today_main.empty:
-            st.table(today_main)
+            # ─── Cleaned “Today’s Daily Recommendations” ─────────────────────────────────
+st.subheader("✅ Today's Daily Recommendations")
+
+date_col = find_date_column(daily_df.columns)
+if date_col:
+    picks = daily_df[daily_df[date_col] == today_str]
+    if not picks.empty:
+        for idx, row in picks.reset_index(drop=True).iterrows():
+            st.markdown(
+                f"**{idx+1}. {row['Player']}**  \n"
+                f"- **Prop:** {row['Prop']}  \n"
+                f"- **Line:** {row['Line']}  \n"
+                f"- **Odds:** {row.get('Live Odds','N/A')}"
+            )
+            st.markdown("---")
+    else:
+        st.info("No daily picks for today.")
+else:
+    st.warning("❗ No date-like column found in Daily Picks tab.")
+
         else:
             st.info("No main-sheet picks logged for today.")
     else:
