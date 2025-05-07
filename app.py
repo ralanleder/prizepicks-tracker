@@ -10,7 +10,7 @@ import random
 import itertools
 from prizepicks_client import get_account_balance, get_current_board
 
-# ─── 1) Load ENV & Authenticate Google Sheets ─────────────────────────────────
+# ─── 1) Load ENV & Authenticate Google Sheets ──────────────────────────────────
 load_dotenv()
 creds_dict = {
     "type": os.getenv("TYPE"),
@@ -25,10 +25,9 @@ creds_dict = {
     "client_x509_cert_url": os.getenv("CLIENT_CERT_URL"),
 }
 scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
+client = gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
 
-# ─── 2) Constants ──────────────────────────────────────────────────────────────
+# ─── 2) Constants ───────────────────────────────────────────────────────────────
 SHEET_NAME      = "PrizePicks Sheet"
 DAILY_TAB       = "Daily Picks"
 MULTI_TAB       = "MultiSport Picks"
@@ -36,15 +35,17 @@ today_str       = date.today().strftime("%Y-%m-%d")
 SPORTS_LIST     = ["Soccer","NBA","Baseball","NFL","NHL"]
 
 # ─── 3) Helpers ─────────────────────────────────────────────────────────────────
-def find_date_column(columns):
-    variants = {"date","day","pick date","game date"}
-    for c in columns:
-        if str(c).strip().lower() in variants:
-            return c
-    return None
+def ensure_headers(ws, expected):
+    """Ensure worksheet ws has header row matching expected list."""
+    current = ws.row_values(1)
+    if current != expected:
+        try:
+            ws.delete_row(1)
+        except:
+            pass
+        ws.insert_row(expected, 1)
 
 def load_df(tab=None):
-    """Load DataFrame from the given worksheet or first sheet."""
     sheet = client.open(SHEET_NAME)
     ws = sheet.worksheet(tab) if tab else sheet.sheet1
     df = pd.DataFrame(ws.get_all_records())
@@ -53,48 +54,58 @@ def load_df(tab=None):
 
 def save_daily_picks(picks: pd.DataFrame):
     ws = client.open(SHEET_NAME).worksheet(DAILY_TAB)
-    # clear out existing today
-    cells = ws.findall(today_str, in_column=1)
-    for cell in sorted(cells, key=lambda c: c.row, reverse=True):
-        if cell.row>1: ws.delete_rows(cell.row)
+    # ensure headers
+    ensure_headers(ws, ["Date","Sport","Player","Prop","Line","Recommendation","Probability"])
+    # remove existing today
+    for cell in sorted(ws.findall(today_str, in_column=1), key=lambda c:c.row, reverse=True):
+        if cell.row>1:
+            ws.delete_rows(cell.row)
     # append new
     for _, r in picks.iterrows():
-        ws.append_row([today_str,
-                       r["Player"],
-                       r["Prop"],
-                       r["Line"],
-                       r["Recommendation"],
-                       r["Probability"]])
+        ws.append_row([
+            today_str,
+            r["Sport"],
+            r["Player"],
+            r["Prop"],
+            r["Line"],
+            r["Recommendation"],
+            r["Probability"]
+        ])
 
 def save_multisport(combos: dict):
     ws = client.open(SHEET_NAME).worksheet(MULTI_TAB)
-    # clear existing today
-    cells = ws.findall(today_str, in_column=1)
-    for cell in sorted(cells, key=lambda c: c.row, reverse=True):
-        if cell.row>1: ws.delete_rows(cell.row)
+    # ensure headers
+    ensure_headers(ws, ["Date","Type","Legs","Payout","Probability"])
+    # remove existing today
+    for cell in sorted(ws.findall(today_str, in_column=1), key=lambda c:c.row, reverse=True):
+        if cell.row>1:
+            ws.delete_rows(cell.row)
     # append parlays
     for p in combos["parlays"]:
-        ws.append_row([today_str,
-                       "Parlay",
-                       "; ".join(p["legs"]),
-                       p["payout"],
-                       p["probability"]])
+        ws.append_row([
+            today_str,
+            "Parlay",
+            "; ".join(p["legs"]),
+            p["payout"],
+            p["probability"]
+        ])
     # append moonshots
     for m in combos["moonshots"]:
-        ws.append_row([today_str,
-                       "Moonshot",
-                       "; ".join(m["legs"]),
-                       m["payout"],
-                       m["probability"]])
+        ws.append_row([
+            today_str,
+            "Moonshot",
+            "; ".join(m["legs"]),
+            m["payout"],
+            m["probability"]
+        ])
 
 # ─── 4) Recommendation Logic (stubs) ────────────────────────────────────────────
 def fetch_prizepicks_board():
-    # Replace with real board-fetch
     sample = [
         {"Player":"Lionel Messi","Prop":"Goals","Line":1.5,"Sport":"Soccer"},
         {"Player":"LeBron James","Prop":"Points","Line":28.5,"Sport":"NBA"},
         {"Player":"Mookie Betts","Prop":"Hits","Line":1.5,"Sport":"Baseball"},
-        {"Player":"Patrick Mahomes","Prop":"Passing Yards","Line":275.5,"Sport":"NFL"},
+        {"Player":"Patrick Mahomes","Prop":"Passing Yds","Line":275.5,"Sport":"NFL"},
         {"Player":"Connor McDavid","Prop":"Assists","Line":1.5,"Sport":"NHL"},
     ]
     return pd.DataFrame(sample)
@@ -107,33 +118,30 @@ def score_and_select(df_board: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def generate_multisport_combos(picks: pd.DataFrame):
-    # build 3-leg parlays across different sports
     available = picks.groupby("Sport").first().reset_index()
     sports = available["Sport"].tolist()
-    parlays = []
+    parlays, moonshots = [], []
+    # 3-leg parlays ≤15×
     for combo in itertools.combinations(sports, 3):
-        legs, prob = [],1
+        prob, legs = 1.0, []
         for s in combo:
-            row = picks[picks["Sport"]==s].iloc[0]
-            legs.append(f"{row['Player']} O{row['Line']}")
-            prob *= row["Probability"]
+            r = picks[picks["Sport"]==s].iloc[0]
+            legs.append(f"{r['Player']} O{r['Line']}")
+            prob *= r["Probability"]
         payout = f"{round(min(15,1/prob),1)}×"
         parlays.append({"legs":legs,"payout":payout,"probability":prob})
-
-    # build 4-leg moonshots
-    moonshots = []
+    # 4-leg moonshots ≤25×
     for combo in itertools.combinations(sports, 4):
-        legs, prob = [],1
+        prob, legs = 1.0, []
         for s in combo:
-            row = picks[picks["Sport"]==s].iloc[0]
-            legs.append(f"{row['Player']} O{row['Line']}")
-            prob *= row["Probability"]
+            r = picks[picks["Sport"]==s].iloc[0]
+            legs.append(f"{r['Player']} O{r['Line']}")
+            prob *= r["Probability"]
         payout = f"{round(min(25,1/prob),1)}×"
         moonshots.append({"legs":legs,"payout":payout,"probability":prob})
-
     return {"parlays":parlays,"moonshots":moonshots}
 
-# ─── 5) Page Navigation ─────────────────────────────────────────────────────────
+# ─── 5) Page Layout & Navigation ───────────────────────────────────────────────
 st.set_page_config(page_title="PrizePicks Tracker",layout="wide")
 page = st.sidebar.radio("Navigate to", ["Dashboard","Recommendations","Multi-Sport","Diagnostics"])
 
@@ -144,7 +152,6 @@ if page=="Dashboard":
         df = load_df()
         st.subheader("📚 Full Entry History")
         st.dataframe(df,use_container_width=True)
-        # your existing summary/stats…
     except Exception as e:
         st.error(f"Error loading main sheet: {e}")
 
@@ -155,25 +162,27 @@ elif page=="Recommendations":
         board = fetch_prizepicks_board()
         picks = score_and_select(board)
         save_daily_picks(picks)
-        st.success(f"✅ {len(picks)} picks saved to '{DAILY_TAB}'")
+        st.success(f"{len(picks)} picks saved to '{DAILY_TAB}'")
 
-    # display each sport
     try:
         picks = load_df(DAILY_TAB)
-        date_col = find_date_column(picks.columns)
-        today_picks = picks[picks[date_col]==today_str] if date_col else pd.DataFrame()
+        col = find_date_column(picks.columns)
+        today_picks = picks[picks[col]==today_str] if col else pd.DataFrame()
         for sport in SPORTS_LIST:
             st.markdown(f"**{sport}**")
             df_s = today_picks[today_picks["Sport"]==sport]
             if df_s.empty:
-                st.info("No recs available.")
+                st.info(f"No recs available for {sport}.")
             else:
                 for _,r in df_s.iterrows():
-                    st.markdown(f"- {r['Player']} | {r['Prop']} O {r['Line']} — {r['Probability']*100:.0f}%")
+                    st.markdown(
+                        f"- {r['Player']} | {r['Prop']} O {r['Line']} "
+                        f"— {r['Probability']*100:.0f}%"
+                    )
     except Exception as e:
         st.error(f"Error loading single-sport picks: {e}")
 
-# ─── 8) Multi-Sport Parlays & Moonshots ──────────────────────────────────────────
+# ─── 8) Multi-Sport Parlays & Moonshots ─────────────────────────────────────────
 elif page=="Multi-Sport":
     st.title("🔗 Multi-Sport Parlays & Moonshots")
     if st.button("🔄 Generate & Save Multi-Sport Combos"):
@@ -181,18 +190,20 @@ elif page=="Multi-Sport":
         picks = score_and_select(board)
         combos = generate_multisport_combos(picks)
         save_multisport(combos)
-        st.success("✅ Multi-sport combos saved to '{MULTI_TAB}'")
+        st.success(f"Combos saved to '{MULTI_TAB}'")
 
-    # display saved combos
     try:
         dfm = load_df(MULTI_TAB)
-        date_col = find_date_column(dfm.columns)
-        today_m = dfm[dfm[date_col]==today_str] if date_col else pd.DataFrame()
+        col = find_date_column(dfm.columns)
+        today_m = dfm[dfm[col]==today_str] if col else pd.DataFrame()
         if today_m.empty:
             st.info("No multi-sport combos for today.")
         else:
             for _,r in today_m.iterrows():
-                st.markdown(f"- [{r['Type']}] {r['Legs']} → {r['Payout']} ({r['Probability']*100:.1f}% win)")
+                st.markdown(
+                    f"- [{r['Type']}] {r['Legs']} → {r['Payout']} "
+                    f"({r['Probability']*100:.1f}% win)"
+                )
     except Exception as e:
         st.error(f"Error loading multi-sport combos: {e}")
 
@@ -201,15 +212,15 @@ elif page=="Diagnostics":
     st.title("🛠 Diagnostics")
     token = os.getenv("RL_SESSION") or st.secrets.get("RL_SESSION")
     st.write("🔑 Token:", token[:8]+"…" if token else "None")
-    # Balance
+    st.subheader("💰 Account Balance")
     try:
         bal = get_account_balance()
-        st.metric("💰 Balance",f"${bal:,.2f}")
+        st.metric("Balance",f"${bal:,.2f}")
     except Exception as e:
         st.error(f"Balance error: {e}")
-    # Board sample
+    st.subheader("🔎 Current Board Sample")
     try:
         board = get_current_board()
-        st.write("🔥 Board Sample:",board[:3])
+        st.write(board[:3])
     except Exception as e:
         st.error(f"Board error: {e}")
