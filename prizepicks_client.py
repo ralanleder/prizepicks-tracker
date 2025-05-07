@@ -95,3 +95,5 @@ def get_current_board() -> list[dict]:
                 "Kickoff": p["startsAt"],
             })
     return props
+# Expose SESSION_TOKEN for debugging
+__all__ = ["get_account_balance", "get_user_history", "get_current_board", "SESSION_TOKEN"]
