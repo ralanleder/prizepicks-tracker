@@ -34,22 +34,21 @@ today_str = date.today().strftime("%Y-%m-%d")
 
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# ----------- Helper: Clean and Rename Columns in Daily Picks ------------
+# ----------- Helper: Rename close matches to 'Date' in Daily Picks ------------
 def standardize_date_column(sheet):
     raw_headers = sheet.row_values(1)
-    cleaned_headers = [str(h).strip().title() for h in raw_headers]
+    cleaned_headers = [str(h).strip() for h in raw_headers]
     
-    # Define likely alternate column names for "Date"
     alt_names = ["Day", "Pick Date", " Game Date", "Date "]
 
-    if "Date" not in cleaned_headers:
+    if "Date" not in [col.title() for col in cleaned_headers]:
         for i, col in enumerate(cleaned_headers):
-            if col in alt_names:
+            if col.strip().title() in alt_names:
                 st.warning(f"🛠 Renaming column '{col}' to 'Date'")
                 cleaned_headers[i] = "Date"
                 break
 
-    # Rewrite headers if needed
+    # Rewrite headers if modified
     if cleaned_headers != raw_headers:
         sheet.delete_row(1)
         sheet.insert_row(cleaned_headers, 1)
@@ -79,7 +78,7 @@ try:
         st.warning("Missing 'Result' column in tracker.")
 
     st.subheader("📌 Today's Picks (Main Sheet)")
-    if any(col.lower() == "date" for col in daily_df.columns):
+    if "Date" in df.columns:
         today_main = df[df["Date"] == today_str]
         st.table(today_main if not today_main.empty else "No picks for today.")
     else:
@@ -96,18 +95,20 @@ try:
     daily_data = daily_sheet.get_all_records()
     daily_df = pd.DataFrame(daily_data)
 
-   daily_df.columns = [str(col).strip() for col in daily_df.columns]
+    # Normalize column names
+    daily_df.columns = [str(col).strip() for col in daily_df.columns]
     st.subheader("📅 Daily Picks – Full List")
     st.dataframe(daily_df)
 
-  if any(col.lower() == "date" for col in daily_df.columns):
-        # Safely get the 'Date' column, regardless of case
-date_col = [col for col in daily_df.columns if col.lower() == "date"][0]
-today_recs = daily_df[daily_df[date_col] == today_str]
+    # ✅ Dynamic lookup of 'Date' column
+    date_col = next((col for col in daily_df.columns if col.lower() == "date"), None)
+
+    if date_col:
+        today_recs = daily_df[daily_df[date_col] == today_str]
         st.subheader("✅ Today's Daily Recommendations")
         st.table(today_recs if not today_recs.empty else "No daily picks for today.")
     else:
-        st.warning("❗ Still no 'Date' column after attempted cleanup.")
+        st.warning("❗ 'Date' column not found in Daily Picks tab, even after cleanup.")
 
 except Exception as e:
     st.error(f"❌ Error loading Daily Picks tab: {e}")
