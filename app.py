@@ -10,6 +10,7 @@ import random
 import itertools
 from prizepicks_client import get_account_balance, get_current_board
 
+# Load environment variables
 load_dotenv()
 
 # --- Authentication Setup ---
@@ -30,7 +31,7 @@ if not st.session_state.logged_in:
     st.sidebar.info("Please log in to continue.")
     st.stop()
 
-# --- Google Sheets Auth ---
+# --- Google Sheets Authentication ---
 creds = {
     "type": os.getenv("TYPE"),
     "project_id": os.getenv("PROJECT_ID"),
@@ -43,8 +44,13 @@ creds = {
     "auth_provider_x509_cert_url": os.getenv("AUTH_PROVIDER_CERT_URL"),
     "client_x509_cert_url": os.getenv("CLIENT_CERT_URL"),
 }
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-client = gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds, scope))
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
+client = gspread.authorize(
+    ServiceAccountCredentials.from_json_keyfile_dict(creds, scope)
+)
 
 # --- Constants ---
 SHEET_NAME  = "PrizePicks Sheet"
@@ -58,11 +64,11 @@ SPORTS_LIST = ["Soccer", "NBA", "Baseball", "NFL", "NHL"]
 
 # --- Bet Templates ---
 BET_TEMPLATES = {
-    "Points":      "points",
-    "Rebounds":    "rebounds",
-    "Assists":     "assists",
-    "Pts+Reb":     "points & rebounds",
-    "3PT Made":    "three-pointers made",
+    "Points":   "points",
+    "Rebounds": "rebounds",
+    "Assists":  "assists",
+    "Pts+Reb":  "points & rebounds",
+    "3PT Made": "three-pointers made",
 }
 
 def format_pick(player, prop, line, rec):
@@ -70,7 +76,6 @@ def format_pick(player, prop, line, rec):
     return f"{player} — {rec} {line} {human}"
 
 # --- Helpers ---
-
 def find_date_column(cols):
     for c in cols:
         if str(c).strip().lower() in ("date", "day", "pick date", "game date"):
@@ -85,8 +90,10 @@ def ensure_ws(title, headers, rows=1000, cols=20):
         ws = ss.add_worksheet(title=title, rows=str(rows), cols=str(cols))
     current = ws.row_values(1)
     if current != headers:
-        try: ws.delete_row(1)
-        except: pass
+        try:
+            ws.delete_row(1)
+        except:
+            pass
         ws.insert_row(headers, 1)
     return ws
 
@@ -106,53 +113,104 @@ def get_bankroll():
     return float(df.iloc[-1]["Balance"])
 
 def map_units(prob):
-    if prob >= 0.8: return 2
-    if prob >= 0.7: return 1
-    if prob >= 0.6: return 0.5
+    if prob >= 0.8:
+        return 2
+    if prob >= 0.7:
+        return 1
+    if prob >= 0.6:
+        return 0.5
     return 0.25
 
 # --- Save Routines ---
-
 def save_daily(picks):
-    ws = ensure_ws(DAILY_TAB,
+    ws = ensure_ws(
+        DAILY_TAB,
         ["Date","Sport","Player","Prop","Line","Recommendation","Probability","Units","Stake","Status"]
     )
-    for cell in sorted(ws.findall(today_str, in_column=1), key=lambda c: c.row, reverse=True):
-        if cell.row > 1: ws.delete_rows(cell.row)
-    bal = get_bankroll(); unit_val = bal * 0.05
+    # clear today
+    for cell in sorted(
+        ws.findall(today_str, in_column=1), key=lambda c: c.row, reverse=True
+    ):
+        if cell.row > 1:
+            ws.delete_rows(cell.row)
+    bal = get_bankroll()
+    unit_val = bal * 0.05
     for _, r in picks.iterrows():
         units = map_units(r["Probability"])
         stake = round(units * unit_val, 2)
-        ws.append_row([today_str, r["Sport"], r["Player"], r["Prop"], r["Line"], r["Recommendation"], r["Probability"], units, stake, ""])
+        ws.append_row([
+            today_str,
+            r["Sport"],
+            r["Player"],
+            r["Prop"],
+            r["Line"],
+            r["Recommendation"],
+            r["Probability"],
+            units,
+            stake,
+            ""
+        ])
 
 def save_multi(combos):
-    ws = ensure_ws(MULTI_TAB,
+    ws = ensure_ws(
+        MULTI_TAB,
         ["Date","Type","Legs","Payout","Probability","Units","Stake","Status"]
     )
-    for cell in sorted(ws.findall(today_str, in_column=1), key=lambda c: c.row, reverse=True):
-        if cell.row > 1: ws.delete_rows(cell.row)
-    bal = get_bankroll(); unit_val = bal * 0.05
+    for cell in sorted(
+        ws.findall(today_str, in_column=1), key=lambda c: c.row, reverse=True
+    ):
+        if cell.row > 1:
+            ws.delete_rows(cell.row)
+    bal = get_bankroll()
+    unit_val = bal * 0.05
+    # parlays
     for p in combos["parlays"]:
         units = map_units(p["probability"])
         stake = round(units * unit_val, 2)
-        ws.append_row([today_str, "Parlay", "; ".join(p["legs"]), p["payout"], p["probability"], units, stake, ""])
+        ws.append_row([
+            today_str,
+            "Parlay",
+            "; ".join(p["legs"]),
+            p["payout"],
+            p["probability"],
+            units,
+            stake,
+            ""
+        ])
+    # moonshots
     for m in combos["moonshots"]:
         units = map_units(m["probability"])
         stake = round(units * unit_val, 2)
-        ws.append_row([today_str, "Moonshot", "; ".join(m["legs"]), m["payout"], m["probability"], units, stake, ""])
+        ws.append_row([
+            today_str,
+            "Moonshot",
+            "; ".join(m["legs"]),
+            m["payout"],
+            m["probability"],
+            units,
+            stake,
+            ""
+        ])
 
 def save_log(run_type, combos):
-    ws = ensure_ws(LOG_TAB,
+    ws = ensure_ws(
+        LOG_TAB,
         ["Run Timestamp","Pick Type","Details","Num Legs","Combined Probability","Units"]
     )
     ts = datetime.utcnow().isoformat()
     for kind in ("parlays","moonshots"):
         for combo in combos[kind]:
             units = map_units(combo["probability"])
-            ws.append_row([ts, kind.title(), "; ".join(combo["legs"]), len(combo["legs"]), combo["probability"], units])
+            ws.append_row([
+                ts,
+                kind.title(),
+                "; ".join(combo["legs"]),
+                len(combo["legs"]),
+                combo["probability"],
+                units
+            ])
 
 # --- Pipeline ---
-
 def run_update_pipeline():
     from prizepicks_client import lookup_final_stat
     df = load_df(DAILY_TAB)
@@ -179,28 +237,3 @@ def run_update_pipeline():
     ensure_ws(WATCH_TAB, ["Date", "Player", "Prop", "Game", "Status"])
 
 # --- UI follows ---
-st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
-page = st.sidebar.radio("Navigate to", ["Dashboard","Recommendations","Multi-Sport","Bankroll","Diagnostics"])
-
-if page == "Dashboard":
-    st.title("📊 Dashboard")
-    try:
-        df = load_df()
-        st.subheader("📚 Full Entry History")
-        st.dataframe(df, use_container_width=True)
-    except Exception as e:
-        st.error(f"Error loading main sheet: {e}")
-
-elif page == "Recommendations":
-    st.title("🎯 Single-Sport Picks")
-    if st.button("🔄 Generate & Save Single-Sport Picks"):
-        picks = score_and_select(fetch_prizepicks_board())
-        save_daily(picks)
-        st.success(f"{len(picks)} picks saved to '{DAILY_TAB}'")
-    try:
-        df = load_df(DAILY_TAB)
-        dc = find_date_column(df.columns)
-        tp = df[df[dc] == today_str] if dc else pd.DataFrame()
-        bal = get_bankroll(); uv = bal * 0.05
-        for sport in SPORTS_LIST:
-            st.markdown(f"**{sport}**")
