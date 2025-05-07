@@ -6,7 +6,17 @@ from dotenv import load_dotenv
 from datetime import date
 import os
 
-# ─── 1) Load ENV & Authenticate ────────────────────────────────────────────────
+# ─── Force Streamlit Rerun ──────────────────────────────────────────────────────
+try:
+    from streamlit.runtime.scriptrunner import RerunException
+except ImportError:
+    from streamlit.script_runner import RerunException
+
+def trigger_rerun():
+    """Raise the exception Streamlit uses to restart the script."""
+    raise RerunException
+
+# ─── Load ENV & Authenticate ────────────────────────────────────────────────────
 load_dotenv()
 creds_dict = {
     "type": os.getenv("TYPE"),
@@ -27,30 +37,21 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ─── 2) Constants ───────────────────────────────────────────────────────────────
+# ─── Constants ─────────────────────────────────────────────────────────────────
 SHEET_NAME = "PrizePicks Sheet"
-today_str  = date.today().strftime("%Y-%m-%d")
+today_str = date.today().strftime("%Y-%m-%d")
 
-# ─── 3) Page Setup & Refresh Button ─────────────────────────────────────────────
+# ─── Page Setup & Refresh Button ───────────────────────────────────────────────
 st.set_page_config(page_title="PrizePicks Tracker", layout="wide")
-# Debug counter
-if "refresh_count" not in st.session_state:
-    st.session_state.refresh_count = 0
-
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# Centered Refresh button
-col1, col2, col3 = st.columns([1,2,1])
+col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     st.markdown("### 🔄 **Refresh Props**")
-    if st.button("🔄 REFRESH NOW", key="refresh-main"):
-        st.session_state.refresh_count += 1
-        st.experimental_rerun()
+    if st.button("🔄 REFRESH NOW", key="refresh-main", help="Click to reload all data"):
+        trigger_rerun()
 
-st.caption(f"*Rerun count: {st.session_state.refresh_count}*")
-
-
-# ─── 4) Helper Functions ────────────────────────────────────────────────────────
+# ─── Helper Functions ──────────────────────────────────────────────────────────
 def find_date_column(columns):
     variants = {"date", "day", "pick date", "game date"}
     for c in columns:
@@ -67,7 +68,7 @@ def load_sheet_dataframe(sheet_name, worksheet_name=None):
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
-# ─── 5) Main Tracker Section ───────────────────────────────────────────────────
+# ─── Main Tracker Section ──────────────────────────────────────────────────────
 try:
     main_df = load_sheet_dataframe(SHEET_NAME)
     st.subheader("📚 Full Entry History")
@@ -75,9 +76,9 @@ try:
 
     st.subheader("📈 Performance Summary")
     if "Result" in main_df.columns:
-        hits  = main_df[main_df["Result"].str.lower() == "hit"]
+        hits = main_df[main_df["Result"].str.lower() == "hit"]
         misses = main_df[main_df["Result"].str.lower() == "miss"]
-        total  = len(hits) + len(misses)
+        total = len(hits) + len(misses)
         if total > 0:
             st.metric("✅ Total Logged", total)
             st.metric("🎯 Hit Rate", f"{len(hits)/total*100:.1f}%")
@@ -99,7 +100,7 @@ try:
 except Exception as e:
     st.error(f"Error loading main tracker sheet: {e}")
 
-# ─── 6) Daily Recommendations Section ──────────────────────────────────────────
+# ─── Daily Recommendations Section ────────────────────────────────────────────
 try:
     daily_df = load_sheet_dataframe(SHEET_NAME, worksheet_name="Daily Picks")
     st.subheader("📅 Daily Picks – Full List")
@@ -115,7 +116,7 @@ try:
                     f"**{idx+1}. {row['Player']}**  \n"
                     f"- **Prop:** {row['Prop']}  \n"
                     f"- **Line:** {row['Line']}  \n"
-                    f"- **Recommendation:** {row.get('Recommendation', 'N/A')}"
+                    f"- **Recommendation:** {row.get('Recommendation','N/A')}"
                 )
                 st.markdown("---")
         else:
@@ -137,7 +138,7 @@ try:
                         r["Player"],
                         r["Prop"],
                         r["Line"],
-                        r.get("Recommendation", "")
+                        r.get("Recommendation","")
                     ])
                 st.success("✅ Today's picks saved!")
             except Exception as err:
