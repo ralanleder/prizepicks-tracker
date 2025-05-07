@@ -39,16 +39,15 @@ if "refresh_count" not in st.session_state:
 
 st.title("📊 PrizePicks Tracker Dashboard")
 
-# Centered Refresh & Debug
+# Centered Refresh button
 col1, col2, col3 = st.columns([1,2,1])
 with col2:
     st.markdown("### 🔄 **Refresh Props**")
     if st.button("🔄 REFRESH NOW", key="refresh-main"):
         st.session_state.refresh_count += 1
-        # clear any memoized data
-        st.experimental_memo.clear()
         st.experimental_rerun()
-    st.caption(f"*Reruns: {st.session_state.refresh_count}*")
+
+st.caption(f"*Rerun count: {st.session_state.refresh_count}*")
 
 
 # ─── 4) Helper Functions ────────────────────────────────────────────────────────
