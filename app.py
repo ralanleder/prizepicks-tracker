@@ -17,17 +17,17 @@ load_dotenv()
 USER_CREDENTIALS = st.secrets.get("credentials", {})
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+st.sidebar.title("🔒 Login")
+username = st.sidebar.text_input("Username")
+password = st.sidebar.text_input("Password", type="password")
+if st.sidebar.button("Login"):
+    if username in USER_CREDENTIALS and password == USER_CREDENTIALS[username]:
+        st.session_state.logged_in = True
+        st.sidebar.success("Logged in successfully!")
+    else:
+        st.sidebar.error("Invalid credentials")
 if not st.session_state.logged_in:
-    st.sidebar.title("🔒 Login")
-    username = st.sidebar.text_input("Username")
-    password = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Login"):
-        if username in USER_CREDENTIALS and password == USER_CREDENTIALS[username]:
-            st.session_state.logged_in = True
-            st.sidebar.success("Logged in successfully!")
-            st.experimental_rerun()
-        else:
-            st.sidebar.error("Invalid credentials")
+    st.sidebar.info("Please log in to continue.")
     st.stop()
 
 # --- Google Sheets Auth ---
