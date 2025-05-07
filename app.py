@@ -203,4 +203,4 @@ elif page == "Recommendations":
         tp = df[df[dc] == today_str] if dc else pd.DataFrame()
         bal = get_bankroll(); uv = bal * 0.05
         for sport in SPORTS_LIST:
-            st.markdown(f"**{sport}**")\`
+            st.markdown(f"**{sport}**")
